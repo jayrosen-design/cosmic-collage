@@ -29,8 +29,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const [split, setSplit] = useState(50);
   const [ready, setReady] = useState(false);
 
-  const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [camera, setCamera] = useState({ zoom: 1, offset: { x: 0, y: 0 } });
   const [panning, setPanning] = useState(false);
   const [dragTileId, setDragTileId] = useState<string | null>(null);
   const [hoverTileId, setHoverTileId] = useState<string | null>(null);
@@ -49,27 +48,29 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   }, [mosaic, images, selectedTileId, view]);
 
   const reset = useCallback(() => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
+    setCamera({ zoom: 1, offset: { x: 0, y: 0 } });
   }, []);
 
   useEffect(() => {
     reset();
   }, [view, reset]);
 
-  const zoomAt = useCallback((next: number, px: number, py: number) => {
-    setZoom((z) => {
-      const clamped = clamp(next, MIN_ZOOM, MAX_ZOOM);
-      const k = clamped / z;
-      setOffset((o) => ({ x: px - (px - o.x) * k, y: py - (py - o.y) * k }));
-      return clamped;
+  const zoomAt = useCallback((zoomFactor: number, px: number, py: number) => {
+    setCamera((current) => {
+      const nextZoom = clamp(current.zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
+      const k = nextZoom / current.zoom;
+      return {
+        zoom: nextZoom,
+        offset: {
+          x: px - (px - current.offset.x) * k,
+          y: py - (py - current.offset.y) * k,
+        },
+      };
     });
   }, []);
 
   const zoomAtRef = useRef(zoomAt);
   zoomAtRef.current = zoomAt;
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -77,22 +78,24 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      // coordinates are relative to the viewport center so the anchor math matches
+      // transform-origin: center center.
+      const px = e.clientX - rect.left - cx;
+      const py = e.clientY - rect.top - cy;
       const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
-      zoomAtRef.current(
-        zoomRef.current * Math.exp(-dy * 0.0018),
-        e.clientX - rect.left,
-        e.clientY - rect.top,
-      );
+      zoomAtRef.current(Math.exp(-dy * 0.0018), px, py);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
   }, []);
 
   const zoomButton = (factor: number) => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    zoomAt(zoom * factor, rect.width / 2, rect.height / 2);
+    // Zoom in/out anchored at the viewport center.
+    zoomAt(factor, 0, 0);
   };
 
   const tileAt = (e: React.MouseEvent, canvas: HTMLCanvasElement) => {
@@ -135,14 +138,17 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const onViewportPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 2) return;
     e.preventDefault();
-    panStart.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+    panStart.current = { x: e.clientX, y: e.clientY, ox: camera.offset.x, oy: camera.offset.y };
     setPanning(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onViewportPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const s = panStart.current;
     if (!s) return;
-    setOffset({ x: s.ox + (e.clientX - s.x), y: s.oy + (e.clientY - s.y) });
+    setCamera((c) => ({
+      ...c,
+      offset: { x: s.ox + (e.clientX - s.x), y: s.oy + (e.clientY - s.y) },
+    }));
   };
   const endPan = () => {
     panStart.current = null;
@@ -150,7 +156,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   };
 
   const canvasClass = cn(
-    "max-h-[calc(100vh-13rem)] max-w-full object-contain",
+    "max-h-full max-w-full object-contain",
     dragTileId ? "cursor-grabbing" : "cursor-crosshair",
   );
 
@@ -169,17 +175,17 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
         )}
       >
         <div
-          className="relative max-h-full max-w-full"
+          className="absolute inset-0 flex items-center justify-center"
           style={{
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-            transformOrigin: "0 0",
+            transform: `translate(${camera.offset.x}px, ${camera.offset.y}px) scale(${camera.zoom})`,
+            transformOrigin: "center center",
           }}
         >
           {view === "target" && target && (
             <img
               src={target.url}
               alt={`Target photograph: ${target.name}`}
-              className="max-h-[calc(100vh-13rem)] max-w-full object-contain"
+              className="max-h-full max-w-full object-contain"
             />
           )}
 
@@ -236,7 +242,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
             <Plus className="h-4 w-4" />
           </button>
           <span className="data-mono border-y border-border px-1 py-1 text-center text-[10px] text-muted-foreground">
-            {Math.round(zoom * 100)}%
+            {Math.round(camera.zoom * 100)}%
           </span>
           <button
             type="button"
