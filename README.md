@@ -293,6 +293,12 @@ src/
     engine.ts             BrowserAnalysisEngine (analysis + matching)
     render.ts             canvas compositing, assembly map, exports
     store.tsx             StudioProvider: all app state and actions
+    navigator.ts          UF NaviGator Toolkit client (OpenAI-compatible)
+    ai-engine.ts          AIAnalysisEngine: 5-phase alignment pipeline
+    ai-analysis.ts        analysis imagery + candidate contact sheets
+    registration.ts       cell importance + neighbour continuity maths
+  routes/api/
+    navigator.$.ts        same-origin proxy for NaviGator API (CORS)
 public/demo/index.json                built-in demo registry (andromeda, orion)
 public/demo/andromeda/manifest.json   demo project definition
 public/demo/orion/manifest.json       Orion Nebula demo (+ SOURCES.md provenance)
