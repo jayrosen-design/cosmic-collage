@@ -373,10 +373,26 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     patchSettings,
     setTarget: (id) => setProject((p) => (p ? { ...p, targetId: id } : p)),
     toggleImage: (id, enabled) =>
-      setImages((prev) => prev.map((i) => (i.id === id ? { ...i, enabled } : i))),
+      setImages((prev) =>
+        prev.map((i) => {
+          if (i.id !== id) return i;
+          if (i.origin === "upload") updateUpload(id, { enabled });
+          return { ...i, enabled };
+        }),
+      ),
     updateImage: (id, patch) =>
-      setImages((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i))),
-    removeImage: (id) => setImages((prev) => prev.filter((i) => i.id !== id)),
+      setImages((prev) =>
+        prev.map((i) => {
+          if (i.id !== id) return i;
+          if (i.origin === "upload") updateUpload(id, patch);
+          return { ...i, ...patch };
+        }),
+      ),
+    removeImage: (id) => {
+      removeUpload(id);
+      setImages((prev) => prev.filter((i) => i.id !== id));
+    },
+
     addUploads,
     generate,
     newSeed: () =>
