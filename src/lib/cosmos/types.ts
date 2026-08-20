@@ -133,6 +133,8 @@ export interface MosaicTile {
   colorScore: number;
   structureScore: number;
   locked: boolean;
+  /** Fraction of this cell covered by the real target photograph (1 = fully inside). */
+  targetCoverage?: number;
   /** Candidate indexes offered in the Tile Inspector. */
   alternatives: number[];
   /** Present only on tiles reviewed by AI Alignment. */
@@ -145,7 +147,23 @@ export interface MosaicSettings {
   rows: number;
   tileGap: number;
   tileBorder: number;
+  /**
+   * "target" — the mosaic frame matches the Virtual Target Canvas aspect (tiles
+   * become uniformly rectangular). "square" — tiles stay square.
+   */
   aspectMode: "target" | "square";
+  /* Composition (Virtual Target Canvas) */
+  canvasAspect: "auto" | "3:2" | "4:3" | "16:9" | "1:1" | "custom";
+  /** used only when canvasAspect === "custom" */
+  customAspect: number;
+  /** 0.4..1 — how much of the composition the astronomical target occupies */
+  targetScale: number;
+  /** 0..1 horizontal position of the target inside the composition */
+  targetOffsetX: number;
+  /** 0..1 vertical position of the target inside the composition */
+  targetOffsetY: number;
+  /** mosaic background padding around the target */
+  mosaicPadding: boolean;
   abstraction: number;
   randomness: number;
   seed: number;
