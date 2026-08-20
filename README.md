@@ -561,9 +561,9 @@ Views: Reconstruction, Target, and Split-Compare.
 
 ---
 
-## 8. Adding features — where to plug in
+## 9. Adding features — where to plug in
 
-### 8a. A new image source (NASA APIs, a WordPress media library, S3, …)
+### 9a. A new image source (NASA APIs, a WordPress media library, S3, …)
 
 Everything downstream only knows about `SourceImage[]`, so an integration is an
 *adapter* that produces those objects. Recommended shape:
@@ -594,14 +594,14 @@ Concrete targets:
   a good match for `equipment`, `captureDate`, `photographer`. Prefer a large
   registered size over the original for analysis speed.
 
-### 8b. Persistence, accounts, sharing
+### 9b. Persistence, accounts, sharing
 
 Enable Lovable Cloud and store `Project`, `SourceImage` rows and serialised
 `Mosaic` documents. `MosaicSettings` + `seed` + `targetId` fully reproduce a
 collage, so a saved project can be tiny: settings, seed, source ids, plus any
 manually edited/locked tiles. Roles must live in a separate `user_roles` table.
 
-### 8c. A smarter matcher (the "AI" engine)
+### 9c. A smarter matcher (the "AI" engine)
 
 Implement `MosaicAnalysisEngine` with `mode: "ai"` (e.g. CLIP/DINO embeddings
 computed server-side, cosine similarity + Hungarian assignment) and swap it in
@@ -609,7 +609,7 @@ where `browserEngine` is used in `store.tsx`. Keep the same `MosaicTile` output
 so the inspector, assembly map and CSV keep working unchanged. Precomputed
 embeddings per `SourceImage` are the natural thing to cache in the database.
 
-### 8d. Performance headroom
+### 9d. Performance headroom
 
 Move `describeRegion` / candidate scoring into a Web Worker (or WASM) — the code
 is already pure functions over typed arrays. `OffscreenCanvas` would let both
