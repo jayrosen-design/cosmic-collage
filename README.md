@@ -46,6 +46,7 @@ graph TD
     RAR["/archive"]
     RP["/project/$id"]
     RPH["/physical/$id"]
+    RNA["/api/navigator"]
   end
 
   subgraph Shell["Shared UI"]
@@ -66,9 +67,14 @@ graph TD
     EN["engine.ts (BrowserAnalysisEngine)"]
     RN["render.ts (canvas + exports)"]
     TY["types.ts (data model + engine seam)"]
+    AI["ai-engine.ts (AIAnalysisEngine)"]
+    AN["ai-analysis.ts (analysis imagery + contact sheets)"]
+    RG["registration.ts (cell importance + neighbour continuity)"]
+    NV["navigator.ts (NaviGator client)"]
   end
 
   MAN["public/demo/andromeda/manifest.json"]
+  UP["UF NaviGator Toolkit"]
 
   R0 --> SW
   RS --> SW
@@ -89,12 +95,20 @@ graph TD
   PP --> ST
 
   ST --> EN
+  ST --> AI
   ST --> MAN
   CP --> RN
   MC --> RN
   PP --> RN
   EN --> TY
   RN --> TY
+  AI --> EN
+  AI --> AN
+  AI --> RG
+  AI --> NV
+  AN --> NV
+  NV --> RNA
+  RNA --> UP
 ```
 
 ### 0.2 Generation pipeline
@@ -116,7 +130,31 @@ flowchart LR
   V --> X["PNG / JPG / assembly map / CSV manifest"]
 ```
 
-### 0.3 Interaction sequence (generate + refine + export)
+### 0.3 AI Alignment pipeline
+
+```mermaid
+flowchart LR
+  T["Target image"] -->|"renderTargetAnalysisImage"| TI["reduced-resolution JPEG"]
+  S["Source archive"] -->|"BrowserAnalysisEngine"| B["Baseline mosaic"]
+  B -->|"renderMosaicAnalysisImage"| MI["reduced-resolution JPEG"]
+  TI -->|"analyzeGlobalAlignment"| G["Global structural comparison"]
+  MI --> G
+  G -->|"regionWeightFactory"| RW["Region weights"]
+  T -->|"targetCellImportance"| CI["Cell importance map"]
+  B -->|"neighborDisagreement"| ND["Neighbour continuity"]
+  CI --> RANK["rankWeakTiles"]
+  ND --> RANK
+  RW --> RANK
+  RANK --> WEAK["Weak tile list"]
+  WEAK -->|"buildContactSheet"| CS["Contact sheets<br/>A..H candidates"]
+  CS -->|"chooseCandidate"| NAV["NaviGator vision model"]
+  NAV --> REC["Recommended swaps/rotations"]
+  REC -->|"scoreFeatures"| VAL["Numerical validation"]
+  VAL --> FINAL["Final AI-aligned mosaic"]
+  FINAL -->|"aiAdjustment provenance"| EXP["Export / inspector"]
+```
+
+### 0.4 Interaction sequence (generate + refine + export)
 
 ```mermaid
 sequenceDiagram
@@ -124,6 +162,8 @@ sequenceDiagram
   participant CP as ControlsPanel
   participant ST as StudioProvider
   participant EN as BrowserAnalysisEngine
+  participant AI as AIAnalysisEngine
+  participant NV as NaviGatorProxy
   participant MC as MosaicCanvas
   participant RN as render.ts
 
@@ -137,6 +177,15 @@ sequenceDiagram
   EN-->>ST: Mosaic + onProgress phases
   ST-->>MC: mosaic state
   MC->>RN: renderMosaic(canvas)
+  U->>CP: ✦ AI Alignment
+  CP->>ST: generateWithAI()
+  ST->>EN: generate baseline
+  EN-->>ST: baseline mosaic
+  ST->>AI: align(baseline, settings)
+  AI->>NV: global comparison + candidate sheets
+  NV-->>AI: recommendations
+  AI->>ST: refined mosaic + stats
+  ST-->>MC: mosaic state
   U->>MC: click tile
   MC->>ST: selectTile(id)
   U->>MC: drag tile onto another
@@ -146,7 +195,7 @@ sequenceDiagram
   RN-->>U: cosmic-collage.png
 ```
 
-### 0.4 Data model relationships
+### 0.5 Data model relationships
 
 ```mermaid
 erDiagram
@@ -157,6 +206,7 @@ erDiagram
   MOSAIC ||--o{ MOSAIC_TILE : "contains"
   MOSAIC_TILE }o--|| SOURCE_IMAGE : "sourceImageId"
   MOSAIC_TILE ||--o{ CANDIDATE_CROP : "alternatives"
+  MOSAIC_TILE ||--o| AI_ADJUSTMENT : "aiAdjustment"
 
   SOURCE_IMAGE {
     string id
@@ -176,6 +226,17 @@ erDiagram
     float similarity
     boolean locked
   }
+  AI_ADJUSTMENT {
+    boolean changed
+    boolean reviewed
+    string previousSourceImageId
+    int previousRotation
+    float previousSimilarityScore
+    float previousStructureScore
+    float previousBrightnessScore
+    string reason
+    float confidence
+  }
   IMAGE_FEATURES {
     float meanLuminance
     float rgb
@@ -186,12 +247,15 @@ erDiagram
   }
 ```
 
-### 0.5 Extension seam for remote / AI matching
+### 0.6 Extension seam for remote / AI matching
 
 ```mermaid
 graph LR
   ST["StudioProvider"] -->|"MosaicAnalysisEngine"| I{{"interface in types.ts"}}
   I --> B["BrowserAnalysisEngine<br/>(default, client-side)"]
+  I --> AI["AIAnalysisEngine<br/>(NaviGator vision + deterministic validation)"]
+  AI --> NAV["/api/navigator proxy"]
+  NAV --> UF["UF NaviGator Toolkit"]
   I --> S["ServerAnalysisEngine<br/>(createServerFn + embeddings)"]
   I --> N["NasaArchiveEngine<br/>(remote candidate pool)"]
   N --> API["NASA images API / SkyView"]
@@ -244,6 +308,12 @@ src/
     engine.ts             BrowserAnalysisEngine (analysis + matching)
     render.ts             canvas compositing, assembly map, exports
     store.tsx             StudioProvider: all app state and actions
+    navigator.ts          UF NaviGator Toolkit client (OpenAI-compatible)
+    ai-engine.ts          AIAnalysisEngine: 5-phase alignment pipeline
+    ai-analysis.ts        analysis imagery + candidate contact sheets
+    registration.ts       cell importance + neighbour continuity maths
+  routes/api/
+    navigator.$.ts        same-origin proxy for NaviGator API (CORS)
 public/demo/index.json                built-in demo registry (andromeda, orion)
 public/demo/andromeda/manifest.json   demo project definition
 public/demo/orion/manifest.json       Orion Nebula demo (+ SOURCES.md provenance)
@@ -268,14 +338,18 @@ Read this file first; it is the contract every other module obeys.
   candidate pool.
 - **`MosaicTile`** — one grid cell: `row`, `column`, `sourceImageId`,
   `candidateIndex`, the crop rect, `rotation` (0/90/180/270), `scale`, the four
-  score components, `locked`, and `alternatives` (candidate indexes offered in
-  the inspector).
+  score components, `locked`, `alternatives` (candidate indexes offered in the
+  inspector), and optionally `aiAdjustment` — provenance of any AI-suggested
+  replacement (previous candidate/rotation/scores, reason, confidence).
+- **`AiAdjustment`** — tracks whether AI Alignment reviewed or changed a tile.
+  Never replaces photographic credit; it only records the model's recommendation
+  and the application's validation decision.
 - **`MosaicSettings`** — `columns`, `rows`, `tileGap`, `tileBorder`,
   `aspectMode`, `abstraction`, `randomness`, `seed`/`seedLocked`, `diversity`,
   `maxTilesPerSource`, `allowRotation`, `sourceMix` (per-wavelength weighting),
   `includeTargetInSources`.
 - **`Mosaic`** — settings snapshot + `targetId` + `tiles` + `candidateCount` +
-  `engine: "visual" | "ai"`.
+  `createdAt` + `engine: "visual" | "ai"` (records which engine produced it).
 - **`MosaicAnalysisEngine`** — **the extension seam.** Any implementation of
   `analyzeImage`, `findCandidates`, `generateMosaic` can be dropped in, including
   a remote AI service. `Mosaic.engine` records which one produced a result.
@@ -331,16 +405,125 @@ pool in memory so the Tile Inspector can rank alternatives instantly.
 
 ---
 
-## 6. State (`src/lib/cosmos/store.tsx`)
+## 6. AI Alignment (`src/lib/cosmos/ai-engine.ts`)
+
+AI Alignment is an optional refinement pass that uses the UF NaviGator Toolkit
+(`https://api.ai.it.ufl.edu/v1`) as an **artistic curator**, not a generator.
+Every pixel in the final collage still comes from the existing real source
+photographs; the AI only selects, rotates, and arranges fragments that are
+already in the archive. The implementation is a second `MosaicAnalysisEngine`
+with `mode: "ai"` so the rest of the UI (inspector, assembly map, CSV) works
+unchanged.
+
+### 6.1 Design principles
+
+- **The AI is an advisor; the application has the final say.** All model
+  recommendations are numerically re-validated with the deterministic
+  `scoreFeatures` function before they are accepted.
+- **No synthetic imagery.** The vision model only ever receives reduced-resolution
+  copies of existing photographs and chooses between real crops. It cannot paint,
+  blend, inpaint, or hallucinate pixels.
+- **Provenance is preserved.** Every accepted change writes an `AiAdjustment`
+  record into the tile, including the previous source, rotation, scores, the
+  model's reason, and its confidence. Rejected changes still record
+  `reviewed: true`.
+- **Privacy by default.** The NaviGator API key is stored only in the browser's
+  `localStorage`; it is never written into mosaics, gallery entries, exported
+  PNGs, CSV manifests, URLs, logs, or error messages.
+- **CORS proxy.** Because the NaviGator API does not send CORS headers, a
+  same-origin TanStack server route (`src/routes/api/navigator.$.ts`) forwards
+  requests to the upstream. The browser sees `/api/navigator/*`; the key still
+  travels in the `Authorization` header, and the proxy never logs it.
+
+### 6.2 The five-phase pipeline
+
+`AIAnalysisEngine.align()` runs these phases in order:
+
+1. **Baseline generation** — produces a deterministic mosaic with the
+   `BrowserAnalysisEngine` using the current settings and locked tiles. This is
+   always the starting point, so the user never loses the non-AI result.
+2. **Global structural comparison** — `renderTargetAnalysisImage()` and
+   `renderMosaicAnalysisImage()` create reduced-resolution JPEGs (≤1280px) and
+   send them to `analyzeGlobalAlignment()`. NaviGator returns overall scores for
+   structure, brightness, orientation, and visual coherence, plus up to 24
+   regions where a different tile could help.
+3. **Weak-region detection** — deterministic maths ranks the worst tiles:
+   - `targetCellImportance()` measures contrast, edge density, and luminance of
+     each target cell.
+   - `neighborDisagreement()` measures how much a tile's brightness breaks local
+     continuity compared with the target.
+   - `rankWeakTiles()` combines similarity/structure/brightness scores, the cell
+     importance map, neighbour disagreement, and any AI-flagged region weight.
+   - Up to ~12% of tiles (bounded by `MIN_REVIEW_TILES` and `MAX_REVIEW_TILES`)
+     are queued for review; locked tiles are skipped.
+4. **Candidate contact sheets** — for each weak tile, `buildContactSheet()` draws
+   a 4×4 grid: the target cell with surroundings, the current tile, and up to eight
+   alternative crops from the candidate pool labelled A..H. `chooseCandidate()`
+   sends the sheet to NaviGator and asks it to pick the best real fragment, or
+   return `"CURRENT"`. Concurrency is capped at 2 requests with exponential
+   backoff on transient errors.
+5. **Numerical validation and application** — every recommendation is re-scored
+   with `scoreFeatures()` at the chosen rotation. The application accepts it only
+   if it improves structure or similarity, and only if no key metric drops
+   severely (structure/brightness >0.12, similarity >0.08). Accepted changes are
+   written into the final `Mosaic` with `engine: "ai"` and full `AiAdjustment`
+   provenance.
+
+### 6.3 Files and responsibilities
+
+| File | Responsibility |
+| --- | --- |
+| `src/lib/cosmos/navigator.ts` | API key/model storage in `localStorage`, model discovery (`listModels`, `resolveModel`), `visionJson()` multimodal requests, `runQueue()` with retries/backoff, typed `NavigatorError` kinds. |
+| `src/lib/cosmos/ai-engine.ts` | `AIAnalysisEngine` implementing `MosaicAnalysisEngine`; orchestrates the 5-phase pipeline; emits `AiProgress` and `AiAlignmentStats`. |
+| `src/lib/cosmos/ai-analysis.ts` | `renderTargetAnalysisImage()`, `renderMosaicAnalysisImage()`, `buildContactSheet()`, `analyzeGlobalAlignment()`, `chooseCandidate()`; Zod schemas for structured JSON responses. |
+| `src/lib/cosmos/registration.ts` | `targetCellImportance()`, `neighborDisagreement()`, `rankWeakTiles()` — pure deterministic maths with no network calls. |
+| `src/routes/api/navigator.$.ts` | Same-origin proxy to `https://api.ai.it.ufl.edu/v1`; forwards method, body, and `Authorization` header; required because the upstream lacks CORS. |
+
+### 6.4 UI wiring
+
+- **ControlsPanel** shows a "✦ AI Alignment" button and a settings gear. The
+  settings dialog accepts a NaviGator key, selects a model (or "auto"), and tests
+  the connection through the proxy. A consent dialog is shown before the first
+  run because reduced-resolution images are sent to a third-party model.
+- **StudioProvider** adds `aiGenerating`, `aiProgress`, `aiBaseline`, `aiStats`,
+  `aiError`, and `navigatorConnected` to its state. `generateWithAI()` calls
+  `aiEngine.align()` and stores the refined mosaic; `cancelAIGeneration()` aborts
+  via `AbortController`.
+- **MosaicCanvas** adds a "baseline" view so the user can compare the
+  pre-AI reconstruction side-by-side with the refined result, and a
+  `showAiChanges` overlay that highlights tiles modified by AI Alignment.
+- **TileInspector** displays the `AiAdjustment` provenance: whether the tile was
+  reviewed, changed, the previous source/rotation, the model's reason, and its
+  confidence.
+
+### 6.5 Extending the AI engine
+
+- **Swap the vision model** — change `PREFERRED_MODELS` in `navigator.ts`. The
+  client auto-detects vision-capable models from the NaviGator `/models` endpoint.
+- **Change what is sent for review** — edit `rankWeakTiles()` in
+  `registration.ts` to add other local metrics (e.g., colour mismatch, edge
+  direction disagreement).
+- **Change the prompt** — `GLOBAL_PROMPT` and `SHEET_PROMPT` in `ai-analysis.ts`
+  are plain strings. Keep the instruction that the model must not generate or
+  modify pixels, and keep the Zod schemas in sync with the expected JSON shape.
+- **Add a different AI backend** — implement the same `MosaicAnalysisEngine`
+  interface in a new engine file and register it in `store.tsx` alongside
+  `browserEngine` and `aiEngine`. The UI and export paths do not need to change.
+
+---
+
+## 7. State (`src/lib/cosmos/store.tsx`)
 
 `StudioProvider` is mounted once in `__root.tsx` and exposes `useStudio()`:
 
 - Data: `project`, `images`, `target`, `sourcePool`, `settings`, `mosaic`,
-  `ready`, `generating`, `progress`, `selectedTileId`, `engineMode`.
+  `ready`, `generating`, `progress`, `selectedTileId`, `engineMode`, plus
+  AI Alignment state: `aiGenerating`, `aiProgress`, `aiBaseline`, `aiStats`,
+  `aiError`, `navigatorConnected`.
 - Actions: `openDemo`, `patchSettings`, `setTarget`, `toggleImage`,
   `updateImage`, `removeImage`, `addUploads`, `generate`, `newSeed`,
   `selectTile`, `imageById`, `suggest`, `replaceTile`, `swapTiles`,
-  `rotateTile`, `toggleLock`.
+  `rotateTile`, `toggleLock`, `generateWithAI`, `cancelAIGeneration`.
 
 `openDemo(slug = "andromeda")` fetches `/demo/<slug>/manifest.json`, maps each
 entry to a `SourceImage`, picks the `type: "target"` entry as the target, resets
@@ -375,7 +558,7 @@ to `"other"`.
 
 ---
 
-## 7. Canvas interactions (`MosaicCanvas.tsx`)
+## 8. Canvas interactions (`MosaicCanvas.tsx`)
 
 A single `camera` state `{ zoom, x, y }` drives one CSS transform with
 `transform-origin: center center` on an `absolute inset-0 flex items-center
@@ -395,9 +578,9 @@ Views: Reconstruction, Target, and Split-Compare.
 
 ---
 
-## 8. Adding features — where to plug in
+## 9. Adding features — where to plug in
 
-### 8a. A new image source (NASA APIs, a WordPress media library, S3, …)
+### 9a. A new image source (NASA APIs, a WordPress media library, S3, …)
 
 Everything downstream only knows about `SourceImage[]`, so an integration is an
 *adapter* that produces those objects. Recommended shape:
@@ -428,14 +611,14 @@ Concrete targets:
   a good match for `equipment`, `captureDate`, `photographer`. Prefer a large
   registered size over the original for analysis speed.
 
-### 8b. Persistence, accounts, sharing
+### 9b. Persistence, accounts, sharing
 
 Enable Lovable Cloud and store `Project`, `SourceImage` rows and serialised
 `Mosaic` documents. `MosaicSettings` + `seed` + `targetId` fully reproduce a
 collage, so a saved project can be tiny: settings, seed, source ids, plus any
 manually edited/locked tiles. Roles must live in a separate `user_roles` table.
 
-### 8c. A smarter matcher (the "AI" engine)
+### 9c. A smarter matcher (the "AI" engine)
 
 Implement `MosaicAnalysisEngine` with `mode: "ai"` (e.g. CLIP/DINO embeddings
 computed server-side, cosine similarity + Hungarian assignment) and swap it in
@@ -443,7 +626,7 @@ where `browserEngine` is used in `store.tsx`. Keep the same `MosaicTile` output
 so the inspector, assembly map and CSV keep working unchanged. Precomputed
 embeddings per `SourceImage` are the natural thing to cache in the database.
 
-### 8d. Performance headroom
+### 9d. Performance headroom
 
 Move `describeRegion` / candidate scoring into a Web Worker (or WASM) — the code
 is already pure functions over typed arrays. `OffscreenCanvas` would let both
@@ -452,7 +635,7 @@ analysis and rendering run off the main thread and remove the current
 
 ---
 
-## 9. Conventions to keep
+## 10. Conventions to keep
 
 - Colours, gradients and shadows come from the semantic tokens in
   `src/styles.css`. Never hardcode `text-white` / `bg-[#…]`.
@@ -466,7 +649,7 @@ analysis and rendering run off the main thread and remove the current
 
 ---
 
-## 10. Local development
+## 11. Local development
 
 ```sh
 npm i
