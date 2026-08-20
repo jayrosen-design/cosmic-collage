@@ -541,7 +541,7 @@ to `"other"`.
 
 ---
 
-## 7. Canvas interactions (`MosaicCanvas.tsx`)
+## 8. Canvas interactions (`MosaicCanvas.tsx`)
 
 A single `camera` state `{ zoom, x, y }` drives one CSS transform with
 `transform-origin: center center` on an `absolute inset-0 flex items-center
