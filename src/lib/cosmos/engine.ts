@@ -12,6 +12,7 @@ import {
   type MosaicSettings,
   type MosaicTile,
   type SourceImage,
+  type VirtualTargetLayout,
   tileLabel,
 } from "./types";
 
