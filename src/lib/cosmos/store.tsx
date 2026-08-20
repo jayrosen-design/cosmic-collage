@@ -150,11 +150,14 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     [images, project?.targetId, settings.includeTargetInSources],
   );
 
-  const openDemo = useCallback(async () => {
-    if (project || loadingDemo) return;
+  const [activeDemo, setActiveDemo] = useState<string | null>(null);
+
+  const openDemo = useCallback(async (slug: string = "andromeda") => {
+    if (loadingDemo) return;
+    if (activeDemo === slug && project) return;
     setLoadingDemo(true);
     try {
-      const res = await fetch("/demo/andromeda/manifest.json");
+      const res = await fetch(`/demo/${slug}/manifest.json`);
       const manifest = (await res.json()) as Manifest;
       const loaded: SourceImage[] = [];
       for (const m of manifest.images) {
