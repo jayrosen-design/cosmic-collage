@@ -26,6 +26,8 @@ import type {
   SourceImage,
   Wavelength,
 } from "./types";
+import { fileToStoredImage, listUploads, removeUpload, saveUploads, updateUpload } from "./uploads";
+
 
 interface ManifestImage {
   id: string;
@@ -172,7 +174,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         });
       }
       const targetImage = manifest.images.find((m) => m.type === "target") ?? manifest.images[0]!;
-      setImages(loaded);
+      setImages([...loaded, ...listUploads()]);
       setProject({
         id: "andromeda-demo",
         name: manifest.project,
@@ -331,24 +333,28 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     const added: SourceImage[] = [];
     for (const file of list) {
       if (!/^image\/(jpeg|png|webp)$/.test(file.type)) continue;
-      const url = URL.createObjectURL(file);
-      const el = await loadImage(url);
+      const stored = await fileToStoredImage(file);
+      if (!stored) continue;
       added.push({
         id: `UP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         name: file.name.replace(/\.[^.]+$/, ""),
-        url,
+        url: stored.url,
         wavelength: "rgb",
         photographer: "You",
         tags: [],
         enabled: true,
         origin: "upload",
-        width: el.naturalWidth,
-        height: el.naturalHeight,
+        width: stored.width,
+        height: stored.height,
         license: "private",
       });
     }
-    if (added.length) setImages((prev) => [...prev, ...added]);
+    if (added.length) {
+      saveUploads(added);
+      setImages((prev) => [...prev, ...added]);
+    }
   }, []);
+
 
   const value: StudioValue = {
     project,
@@ -367,10 +373,26 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     patchSettings,
     setTarget: (id) => setProject((p) => (p ? { ...p, targetId: id } : p)),
     toggleImage: (id, enabled) =>
-      setImages((prev) => prev.map((i) => (i.id === id ? { ...i, enabled } : i))),
+      setImages((prev) =>
+        prev.map((i) => {
+          if (i.id !== id) return i;
+          if (i.origin === "upload") updateUpload(id, { enabled });
+          return { ...i, enabled };
+        }),
+      ),
     updateImage: (id, patch) =>
-      setImages((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i))),
-    removeImage: (id) => setImages((prev) => prev.filter((i) => i.id !== id)),
+      setImages((prev) =>
+        prev.map((i) => {
+          if (i.id !== id) return i;
+          if (i.origin === "upload") updateUpload(id, patch);
+          return { ...i, ...patch };
+        }),
+      ),
+    removeImage: (id) => {
+      removeUpload(id);
+      setImages((prev) => prev.filter((i) => i.id !== id));
+    },
+
     addUploads,
     generate,
     newSeed: () =>
