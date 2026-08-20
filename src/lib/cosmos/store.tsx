@@ -26,6 +26,8 @@ import type {
   SourceImage,
   Wavelength,
 } from "./types";
+import { fileToStoredImage, listUploads, removeUpload, saveUploads, updateUpload } from "./uploads";
+
 
 interface ManifestImage {
   id: string;
