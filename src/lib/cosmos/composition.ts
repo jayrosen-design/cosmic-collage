@@ -320,3 +320,28 @@ export function cellImportance(
   // padding cells still matter, but the deep-sky object matters more
   return base * (0.3 + 0.7 * clamp(coverage));
 }
+
+/**
+ * Draw the Virtual Target Canvas into an explicit pixel frame (used by the Compare
+ * view so the target sits at exactly the same normalised position as the mosaic).
+ */
+export function drawVirtualTargetFrame(
+  canvas: HTMLCanvasElement,
+  img: HTMLImageElement,
+  layout: VirtualTargetLayout,
+  width: number,
+  height: number,
+) {
+  canvas.width = Math.max(16, Math.round(width));
+  canvas.height = Math.max(16, Math.round(height));
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = rgbCss(layout.backgroundFeatures);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(
+    img,
+    layout.targetX * canvas.width,
+    layout.targetY * canvas.height,
+    layout.targetWidth * canvas.width,
+    layout.targetHeight * canvas.height,
+  );
+}
