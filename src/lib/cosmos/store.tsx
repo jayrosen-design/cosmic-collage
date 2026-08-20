@@ -377,6 +377,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     progress,
     selectedTileId,
     engineMode: browserEngine.mode,
+    activeDemo,
     openDemo,
     patchSettings,
     setTarget: (id) => setProject((p) => (p ? { ...p, targetId: id } : p)),
