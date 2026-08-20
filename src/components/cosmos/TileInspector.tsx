@@ -105,7 +105,14 @@ export function TileInspector() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-        <span className="label-xs">Tile Inspector — {tile.id}</span>
+        <div className="flex items-center gap-2">
+          <span className="label-xs">Tile Inspector — {tile.id}</span>
+          {tile.aiAdjustment?.changed && (
+            <span className="data-mono rounded-sm border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+              ✦ AI Aligned
+            </span>
+          )}
+        </div>
         <button onClick={() => selectTile(null)} className="text-muted-foreground hover:text-foreground">
           <X className="size-3.5" />
         </button>
@@ -128,6 +135,37 @@ export function TileInspector() {
             <p className="data-mono text-muted-foreground">
               Credit: {source?.credit ?? source?.photographer ?? "—"}
             </p>
+            {tile.aiAdjustment && (
+              <div className="mt-1 space-y-0.5 rounded-sm border border-primary/30 bg-primary/5 px-2 py-1">
+                <p className="label-xs text-primary">
+                  {tile.aiAdjustment.changed ? "AI Alignment applied" : "Reviewed by AI, kept"}
+                </p>
+                {tile.aiAdjustment.reason && (
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    {tile.aiAdjustment.reason}
+                  </p>
+                )}
+                <p className="data-mono text-muted-foreground">
+                  {tile.aiAdjustment.previousSourceImageId &&
+                  tile.aiAdjustment.previousSourceImageId !== tile.sourceImageId
+                    ? `was ${imageById(tile.aiAdjustment.previousSourceImageId)?.nasaId ?? tile.aiAdjustment.previousSourceImageId}`
+                    : "same photograph"}
+                  {tile.aiAdjustment.previousRotation != null &&
+                  tile.aiAdjustment.previousRotation !== tile.rotation
+                    ? ` · rotation ${tile.aiAdjustment.previousRotation}° → ${tile.rotation}°`
+                    : ""}
+                  {tile.aiAdjustment.confidence != null
+                    ? ` · confidence ${tile.aiAdjustment.confidence.toFixed(2)}`
+                    : ""}
+                </p>
+                {tile.aiAdjustment.previousSimilarityScore != null && (
+                  <p className="data-mono text-muted-foreground">
+                    match {tile.aiAdjustment.previousSimilarityScore.toFixed(3)} →{" "}
+                    {tile.similarityScore.toFixed(3)}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
