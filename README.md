@@ -241,6 +241,9 @@ erDiagram
 graph LR
   ST["StudioProvider"] -->|"MosaicAnalysisEngine"| I{{"interface in types.ts"}}
   I --> B["BrowserAnalysisEngine<br/>(default, client-side)"]
+  I --> AI["AIAnalysisEngine<br/>(NaviGator vision + deterministic validation)"]
+  AI --> NAV["/api/navigator proxy"]
+  NAV --> UF["UF NaviGator Toolkit"]
   I --> S["ServerAnalysisEngine<br/>(createServerFn + embeddings)"]
   I --> N["NasaArchiveEngine<br/>(remote candidate pool)"]
   N --> API["NASA images API / SkyView"]
