@@ -1,5 +1,5 @@
 /**
- * Cosmos Collage core data model.
+ * Cosmic Collage core data model.
  * Entities: Project, SourceImage, ImageFeatures, CandidateCrop, Mosaic, MosaicTile, Settings.
  * Community entities (User, Profile, Collection, License, CommunityProject, Contribution)
  * are intentionally not implemented in this build.

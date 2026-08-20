@@ -5,13 +5,13 @@ import { ArchivePanel } from "@/components/cosmos/ArchivePanel";
 export const Route = createFileRoute("/archive")({
   head: () => ({
     meta: [
-      { title: "Photo Archive — Cosmos Collage" },
+      { title: "Photo Archive — Cosmic Collage" },
       {
         name: "description",
         content:
           "Browse the observation archive: NASA GALEX, WISE and Spitzer photographs of Andromeda plus your own astrophotography.",
       },
-      { property: "og:title", content: "Cosmos Collage Archive" },
+      { property: "og:title", content: "Cosmic Collage Archive" },
       {
         property: "og:description",
         content: "Every fragment of a collage traces back to a real photograph in this archive.",

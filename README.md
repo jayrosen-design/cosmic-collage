@@ -1,6 +1,6 @@
-# Cosmos Collage
+# Cosmic Collage
 
-Cosmos Collage is a browser-based *computational instrument* for reconstructing an
+Cosmic Collage is a browser-based *computational instrument* for reconstructing an
 astronomical image out of fragments of other **real** astronomical photographs.
 
 The pipeline is:

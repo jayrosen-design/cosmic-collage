@@ -6,7 +6,7 @@ import { WAVELENGTH_LABEL } from "@/lib/cosmos/types";
 export const Route = createFileRoute("/project/$id")({
   head: () => ({
     meta: [
-      { title: "Andromeda Demo Project — Cosmos Collage" },
+      { title: "Andromeda Demo Project — Cosmic Collage" },
       {
         name: "description",
         content:
