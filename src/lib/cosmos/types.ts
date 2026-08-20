@@ -6,16 +6,7 @@
  */
 
 export type Wavelength =
-  | "rgb"
-  | "uv"
-  | "ir"
-  | "ha"
-  | "oiii"
-  | "sii"
-  | "mono"
-  | "dark"
-  | "composite"
-  | "other";
+  "rgb" | "uv" | "ir" | "ha" | "oiii" | "sii" | "mono" | "dark" | "composite" | "other";
 
 export const WAVELENGTH_LABEL: Record<Wavelength, string> = {
   rgb: "Visible / RGB",
@@ -150,7 +141,6 @@ export interface MosaicTile {
   /** Present only on tiles reviewed by AI Alignment. */
   aiAdjustment?: AiAdjustment;
 }
-
 
 export interface MosaicSettings {
   columns: number;

@@ -11,13 +11,7 @@ import { canvasRectToTarget, cellRect, drawVirtualTargetCanvas } from "./composi
 import { loadImage } from "./engine";
 import { renderMosaic } from "./render";
 import { visionJson } from "./navigator";
-import type {
-  CandidateCrop,
-  Mosaic,
-  MosaicTile,
-  SourceImage,
-  VirtualTargetLayout,
-} from "./types";
+import type { CandidateCrop, Mosaic, MosaicTile, SourceImage, VirtualTargetLayout } from "./types";
 
 const GLOBAL_MAX_DIM = 1280;
 const SHEET_MAX_DIM = 1280;
@@ -60,7 +54,11 @@ export async function renderMosaicAnalysisImage(
     6,
     Math.floor(GLOBAL_MAX_DIM / Math.max(mosaic.settings.columns, mosaic.settings.rows)),
   );
-  const { width, height } = await renderMosaic(full, mosaic, sources, { tilePx, gap: 0, border: 0 });
+  const { width, height } = await renderMosaic(full, mosaic, sources, {
+    tilePx,
+    gap: 0,
+    border: 0,
+  });
   const canvas = fittedCanvas(width, height, GLOBAL_MAX_DIM);
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(full, 0, 0, canvas.width, canvas.height);
@@ -139,24 +137,30 @@ export async function analyzeGlobalAlignment(
   mosaicImage: string,
   signal?: AbortSignal | null,
 ): Promise<GlobalAnalysis> {
-  return visionJson({
-    system: GLOBAL_SYSTEM,
-    prompt: GLOBAL_PROMPT,
-    images: [targetImage, mosaicImage],
-    maxTokens: 1200,
-    signal: signal ?? null,
-  }, (raw) => globalAnalysisSchema.parse(raw));
+  return visionJson(
+    {
+      system: GLOBAL_SYSTEM,
+      prompt: GLOBAL_PROMPT,
+      images: [targetImage, mosaicImage],
+      maxTokens: 1200,
+      signal: signal ?? null,
+    },
+    (raw) => globalAnalysisSchema.parse(raw),
+  );
 }
 
 /** Weight multiplier for a tile that falls inside an AI-flagged region. */
-export function regionWeightFactory(analysis: GlobalAnalysis | null, columns: number, rows: number) {
+export function regionWeightFactory(
+  analysis: GlobalAnalysis | null,
+  columns: number,
+  rows: number,
+) {
   if (!analysis || analysis.regions.length === 0) return () => 1;
   const regions = analysis.regions.map((r) => ({
     ...r,
     weight:
       1 +
-      (r.importance ?? 0.7) *
-        (r.priority === "high" ? 1.1 : r.priority === "medium" ? 0.7 : 0.4),
+      (r.importance ?? 0.7) * (r.priority === "high" ? 1.1 : r.priority === "medium" ? 0.7 : 0.4),
   }));
   return (tile: MosaicTile) => {
     const cx = (tile.column + 0.5) / columns;
@@ -183,7 +187,13 @@ export interface SheetCandidate {
   rotation: 0 | 90 | 180 | 270;
 }
 
-function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number) {
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  size: number,
+) {
   ctx.fillStyle = "rgba(8,10,14,0.78)";
   ctx.fillRect(x, y, size, Math.round(size * 0.2));
   ctx.fillStyle = "#e6edf6";
@@ -273,13 +283,7 @@ export async function buildContactSheet(
       0,
       cell * 2,
     );
-    drawLabel(
-      ctx,
-      `TARGET ${tile.id} (with surroundings)`,
-      0,
-      0,
-      cell * 2,
-    );
+    drawLabel(ctx, `TARGET ${tile.id} (with surroundings)`, 0, 0, cell * 2);
   } else {
     // composition padding: no target pixels here — show the derived background tone
     const bg = layout.backgroundFeatures;
@@ -383,11 +387,14 @@ Also list the structural features you actually read in the target region.
 Return JSON only, exactly this shape:
 {"candidateId":"CURRENT","differenceFromCurrent":"none","targetFeatures":["curved luminous arm","dark lower boundary"],"confidence":0.6,"reason":"short reason"}`;
 
-  return visionJson({
-    system: SHEET_SYSTEM,
-    prompt,
-    images: [sheet],
-    maxTokens: 300,
-    signal: signal ?? null,
-  }, (raw) => candidateChoiceSchema.parse(raw));
+  return visionJson(
+    {
+      system: SHEET_SYSTEM,
+      prompt,
+      images: [sheet],
+      maxTokens: 300,
+      signal: signal ?? null,
+    },
+    (raw) => candidateChoiceSchema.parse(raw),
+  );
 }

@@ -88,10 +88,7 @@ export function continuityFor(
 }
 
 /** Continuity for every tile of a mosaic. */
-export function buildContinuity(
-  mosaic: Mosaic,
-  cells: ContinuityCell[],
-): Map<string, number> {
+export function buildContinuity(mosaic: Mosaic, cells: ContinuityCell[]): Map<string, number> {
   const { columns, rows } = mosaic.settings;
   const byKey = new Map<string, MosaicTile>();
   for (const t of mosaic.tiles) byKey.set(`${t.row}:${t.column}`, t);

@@ -249,7 +249,12 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
     abortIfCancelled();
 
     /* Phase 2 — global AI comparison -------------------------------------- */
-    report({ phaseIndex: 3, phase: AI_PHASES[3], value: 0.38, detail: "global structural comparison" });
+    report({
+      phaseIndex: 3,
+      phase: AI_PHASES[3],
+      value: 0.38,
+      detail: "global structural comparison",
+    });
     let analysis: GlobalAnalysis | null = null;
     try {
       analysis = await analyzeGlobalAlignment(targetImage, mosaicImage, signal);
@@ -279,7 +284,8 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
 
     /* Phase 4 — candidate contact sheets ---------------------------------- */
     const weights = weightsForAbstraction(settings.abstraction);
-    const sourceById = (id: string) => sources.find((s) => s.id === id) ?? (target.id === id ? target : undefined);
+    const sourceById = (id: string) =>
+      sources.find((s) => s.id === id) ?? (target.id === id ? target : undefined);
     const rotations: Array<0 | 90 | 180 | 270> = settings.allowRotation ? [0, 90, 180, 270] : [0];
 
     interface Refinement {
@@ -369,7 +375,12 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
     abortIfCancelled();
 
     /* Phase 5 — numerical validation + application ------------------------ */
-    report({ phaseIndex: 5, phase: AI_PHASES[5], value: 0.88, detail: "validating recommendations" });
+    report({
+      phaseIndex: 5,
+      phase: AI_PHASES[5],
+      value: 0.88,
+      detail: "validating recommendations",
+    });
 
     const reviewedIds = new Set(weak.map((w) => w.tile.id));
     const refinements = new Map<string, Refinement>();
@@ -411,7 +422,9 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
         columns,
       ).features;
       let best: Evaluation | null = null;
-      for (const rot of rotations.includes(tile.rotation) ? rotations : [...rotations, tile.rotation]) {
+      for (const rot of rotations.includes(tile.rotation)
+        ? rotations
+        : [...rotations, tile.rotation]) {
         const parts = scoreFeatures(cell, browserEngine.featuresFor(candidateIndex, rot), weights);
         const continuity = continuityFor(parts.brightness, tile.row, tile.column, continuityCtx);
         const quality = alignmentQuality({
@@ -543,9 +556,7 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
       engine: "ai",
     };
 
-    const changedIds = new Set(
-      tiles.filter((t) => t.aiAdjustment?.changed).map((t) => t.id),
-    );
+    const changedIds = new Set(tiles.filter((t) => t.aiAdjustment?.changed).map((t) => t.id));
     // Continuity is recomputed on the final mosaic so reported quality reflects it.
     const finalContinuity = buildContinuity(mosaic, cells);
     const withFinalContinuity = mosaic.tiles.map((t) => ({

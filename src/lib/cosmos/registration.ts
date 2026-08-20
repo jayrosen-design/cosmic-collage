@@ -58,10 +58,7 @@ export function cellAt(cells: CellImportance[], columns: number, row: number, co
  * compared with how far the target's cells sit from each other. High values mean
  * the tile breaks local visual continuity.
  */
-export function neighborDisagreement(
-  mosaic: Mosaic,
-  cells: CellImportance[],
-): Map<string, number> {
+export function neighborDisagreement(mosaic: Mosaic, cells: CellImportance[]): Map<string, number> {
   const { columns, rows } = mosaic.settings;
   const byKey = new Map<string, MosaicTile>();
   for (const t of mosaic.tiles) byKey.set(`${t.row}:${t.column}`, t);
