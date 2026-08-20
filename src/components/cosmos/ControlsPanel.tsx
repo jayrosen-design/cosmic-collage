@@ -1,5 +1,6 @@
-import { Dices, Download, Lock, LockOpen, RefreshCw, Sparkles } from "lucide-react";
+import { Check, Dices, Download, Lock, LockOpen, RefreshCw, Save, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { notifyGalleryChanged, saveGalleryEntry } from "@/lib/cosmos/gallery";
 import { PRESETS, useStudio } from "@/lib/cosmos/store";
 import { WAVELENGTH_LABEL, type Wavelength } from "@/lib/cosmos/types";
 import { downloadCanvas, renderMosaic } from "@/lib/cosmos/render";
