@@ -7,11 +7,17 @@ import { MosaicCanvas, type CanvasView } from "@/components/cosmos/MosaicCanvas"
 import { useStudio } from "@/lib/cosmos/store";
 import { cn } from "@/lib/utils";
 
-const VIEWS: CanvasView[] = ["target", "reconstruction", "compare"];
+const VIEWS: CanvasView[] = ["target", "reconstruction", "baseline", "compare"];
+const VIEW_LABELS: Record<CanvasView, string> = {
+  target: "target",
+  reconstruction: "reconstruction",
+  baseline: "visual (pre-AI)",
+  compare: "compare",
+};
 
 export function StudioWorkspace() {
   const [view, setView] = useState<CanvasView>("reconstruction");
-  const { selectedTileId } = useStudio();
+  const { selectedTileId, aiBaseline, mosaic } = useStudio();
 
   return (
     <StudioShell>
@@ -22,7 +28,7 @@ export function StudioWorkspace() {
 
         <section className="flex min-h-0 flex-col">
           <div className="flex items-center gap-1 border-b border-border bg-surface px-3 py-1.5">
-            {VIEWS.map((v) => (
+            {VIEWS.filter((v) => v !== "baseline" || aiBaseline).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -33,9 +39,14 @@ export function StudioWorkspace() {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {v}
+                {VIEW_LABELS[v]}
               </button>
             ))}
+            {mosaic?.engine === "ai" && (
+              <span className="data-mono ml-auto rounded-sm border border-primary/50 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                ✦ AI Aligned
+              </span>
+            )}
           </div>
           <div className="min-h-0 flex-1">
             <MosaicCanvas view={view} />
