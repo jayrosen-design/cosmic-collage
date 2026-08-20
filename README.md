@@ -21,6 +21,175 @@ login required.
 
 ---
 
+## 0. Diagrams
+
+### 0.1 System structure
+
+```mermaid
+graph TD
+  subgraph Routes["Routes (TanStack file-based)"]
+    R0["/ index.tsx"]
+    RS["/studio"]
+    RA["/about"]
+    RAR["/archive"]
+    RP["/project/$id"]
+    RPH["/physical/$id"]
+  end
+
+  subgraph Shell["Shared UI"]
+    SW["StudioWorkspace"]
+    SH["StudioShell (nav + status)"]
+  end
+
+  subgraph Panels["Panels"]
+    AP["ArchivePanel"]
+    CP["ControlsPanel + Download PNG"]
+    MC["MosaicCanvas (zoom / pan / swap)"]
+    TI["TileInspector"]
+    PP["PhysicalPanel"]
+  end
+
+  subgraph Core["src/lib/cosmos"]
+    ST["store.tsx (StudioProvider)"]
+    EN["engine.ts (BrowserAnalysisEngine)"]
+    RN["render.ts (canvas + exports)"]
+    TY["types.ts (data model + engine seam)"]
+  end
+
+  MAN["public/demo/andromeda/manifest.json"]
+
+  R0 --> SW
+  RS --> SW
+  SW --> SH
+  SW --> AP
+  SW --> CP
+  SW --> MC
+  SW --> TI
+  RPH --> PP
+  RA --> ST
+  RAR --> AP
+  RP --> ST
+
+  AP --> ST
+  CP --> ST
+  MC --> ST
+  TI --> ST
+  PP --> ST
+
+  ST --> EN
+  ST --> MAN
+  CP --> RN
+  MC --> RN
+  PP --> RN
+  EN --> TY
+  RN --> TY
+```
+
+### 0.2 Generation pipeline
+
+```mermaid
+flowchart LR
+  A["Source photos<br/>(demo manifest or uploads)"] --> B["makeAnalysisBitmap<br/>downsample to 448px"]
+  B --> C["buildCandidates<br/>sliding crops x CROP_SCALES"]
+  C --> D["describeRegion<br/>ImageFeatures per crop"]
+  T["Target photo"] --> T2["target bitmap 640px"]
+  T2 --> G["Grid cells (columns x rows)"]
+  G --> H["describeRegion per cell"]
+  D --> S["scoreFeatures<br/>weightsForAbstraction(a)"]
+  H --> S
+  S --> R["rotateFeatures<br/>0/90/180/270"]
+  R --> P["pick best + alternatives<br/>diversity cap, sourceMix, seeded randomness"]
+  P --> M["Mosaic { tiles[] }"]
+  M --> V["renderMosaic to canvas"]
+  V --> X["PNG / JPG / assembly map / CSV manifest"]
+```
+
+### 0.3 Interaction sequence (generate + refine + export)
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant CP as ControlsPanel
+  participant ST as StudioProvider
+  participant EN as BrowserAnalysisEngine
+  participant MC as MosaicCanvas
+  participant RN as render.ts
+
+  U->>CP: adjust grid / abstraction / randomness
+  CP->>ST: patchSettings(partial)
+  U->>CP: Generate Mosaic
+  CP->>ST: generate()
+  ST->>EN: analyze(sources, target)
+  EN-->>ST: candidate pool (cached in engine)
+  ST->>EN: assemble(settings, lockedTiles)
+  EN-->>ST: Mosaic + onProgress phases
+  ST-->>MC: mosaic state
+  MC->>RN: renderMosaic(canvas)
+  U->>MC: click tile
+  MC->>ST: selectTile(id)
+  U->>MC: drag tile onto another
+  MC->>ST: swapTiles(a, b)
+  U->>CP: Download PNG
+  CP->>RN: renderMosaic(offscreen) + downloadCanvas
+  RN-->>U: cosmic-collage.png
+```
+
+### 0.4 Data model relationships
+
+```mermaid
+erDiagram
+  PROJECT ||--|| SOURCE_IMAGE : "targetId"
+  PROJECT ||--o{ SOURCE_IMAGE : "archive"
+  SOURCE_IMAGE ||--o{ CANDIDATE_CROP : "cropped into"
+  CANDIDATE_CROP ||--|| IMAGE_FEATURES : "described by"
+  MOSAIC ||--o{ MOSAIC_TILE : "contains"
+  MOSAIC_TILE }o--|| SOURCE_IMAGE : "sourceImageId"
+  MOSAIC_TILE ||--o{ CANDIDATE_CROP : "alternatives"
+
+  SOURCE_IMAGE {
+    string id
+    string url
+    string wavelength
+    string mission
+    string credit
+    boolean enabled
+  }
+  MOSAIC_TILE {
+    string id
+    int col
+    int row
+    string sourceImageId
+    float sx_sy_sw_sh
+    int rotation
+    float similarity
+    boolean locked
+  }
+  IMAGE_FEATURES {
+    float meanLuminance
+    float rgb
+    float contrast
+    float edgeDensity
+    float edgeDirection
+    float structure16
+  }
+```
+
+### 0.5 Extension seam for remote / AI matching
+
+```mermaid
+graph LR
+  ST["StudioProvider"] -->|"MosaicAnalysisEngine"| I{{"interface in types.ts"}}
+  I --> B["BrowserAnalysisEngine<br/>(default, client-side)"]
+  I --> S["ServerAnalysisEngine<br/>(createServerFn + embeddings)"]
+  I --> N["NasaArchiveEngine<br/>(remote candidate pool)"]
+  N --> API["NASA images API / SkyView"]
+  S --> DB["Lovable Cloud: vectors + cached features"]
+  W["WordPress media REST"] --> AD["SourceImage adapter"]
+  AD --> ST
+```
+
+---
+
 ## 1. Stack
 
 | Concern | Choice |
@@ -44,12 +213,14 @@ React context provider for the session.
 src/
   routes/
     __root.tsx            root layout: fonts, dark class, <StudioProvider>
-    index.tsx             landing page, "Open Andromeda Demo" entry point
-    studio.tsx            main editor (archive | canvas | inspector | controls)
+    index.tsx             "/" — loads the studio with the Andromeda demo directly
+    studio.tsx            "/studio" — same <StudioWorkspace />, canonical editor URL
+    about.tsx             "/about" — the narrative landing page / upload entry point
     archive.tsx           full-library browser
     project.$id.tsx       project metadata + mosaic statistics
     physical.$id.tsx      assembly blueprint + export tools
   components/cosmos/
+    StudioWorkspace.tsx   three-column editor layout shared by / and /studio
     StudioShell.tsx       persistent chrome: nav, status, progress
     ArchivePanel.tsx      source list, wavelength filters, personal uploads
     ControlsPanel.tsx     grid, abstraction, randomness, diversity, presets
