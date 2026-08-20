@@ -103,6 +103,7 @@ interface StudioValue {
   imageById: (id: string) => SourceImage | undefined;
   suggest: (tile: MosaicTile, mode: InspectorMode) => Array<{ candidate: CandidateCrop; score: number }>;
   replaceTile: (tileId: string, candidateIndex: number) => void;
+  swapTiles: (aId: string, bId: string) => void;
   rotateTile: (tileId: string) => void;
   toggleLock: (tileId: string) => void;
 }
