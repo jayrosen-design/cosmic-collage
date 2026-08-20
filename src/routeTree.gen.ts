@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as ArchiveRouteImport } from './routes/archive'
+import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as PhysicalIdRouteImport } from './routes/physical.$id'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
@@ -29,6 +30,11 @@ const AboutRoute = AboutRouteImport.update({
 const ArchiveRoute = ArchiveRouteImport.update({
   id: '/archive',
   path: '/archive',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleryRoute = GalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudioRoute = StudioRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/archive': typeof ArchiveRoute
+  '/gallery': typeof GalleryRoute
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/archive': typeof ArchiveRoute
+  '/gallery': typeof GalleryRoute
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/archive': typeof ArchiveRoute
+  '/gallery': typeof GalleryRoute
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
@@ -75,14 +84,28 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/about' | '/archive' | '/studio' | '/physical/$id' | '/project/$id'
+    | '/'
+    | '/about'
+    | '/archive'
+    | '/gallery'
+    | '/studio'
+    | '/physical/$id'
+    | '/project/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/archive' | '/studio' | '/physical/$id' | '/project/$id'
+  to:
+    | '/'
+    | '/about'
+    | '/archive'
+    | '/gallery'
+    | '/studio'
+    | '/physical/$id'
+    | '/project/$id'
   id:
     | '__root__'
     | '/'
     | '/about'
     | '/archive'
+    | '/gallery'
     | '/studio'
     | '/physical/$id'
     | '/project/$id'
@@ -92,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   ArchiveRoute: typeof ArchiveRoute
+  GalleryRoute: typeof GalleryRoute
   StudioRoute: typeof StudioRoute
   PhysicalIdRoute: typeof PhysicalIdRoute
   ProjectIdRoute: typeof ProjectIdRoute
@@ -118,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/archive'
       fullPath: '/archive'
       preLoaderRoute: typeof ArchiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/studio': {
@@ -148,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   ArchiveRoute: ArchiveRoute,
+  GalleryRoute: GalleryRoute,
   StudioRoute: StudioRoute,
   PhysicalIdRoute: PhysicalIdRoute,
   ProjectIdRoute: ProjectIdRoute,

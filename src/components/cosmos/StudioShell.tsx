@@ -32,6 +32,9 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
           <Link to="/" className={navClass(path === "/" || path === "/studio")}>
             Studio
           </Link>
+          <Link to="/gallery" className={navClass(path === "/gallery")}>
+            Gallery
+          </Link>
           <Link to="/archive" className={navClass(path === "/archive")}>
             Archive
           </Link>
