@@ -323,14 +323,18 @@ Read this file first; it is the contract every other module obeys.
   candidate pool.
 - **`MosaicTile`** — one grid cell: `row`, `column`, `sourceImageId`,
   `candidateIndex`, the crop rect, `rotation` (0/90/180/270), `scale`, the four
-  score components, `locked`, and `alternatives` (candidate indexes offered in
-  the inspector).
+  score components, `locked`, `alternatives` (candidate indexes offered in the
+  inspector), and optionally `aiAdjustment` — provenance of any AI-suggested
+  replacement (previous candidate/rotation/scores, reason, confidence).
+- **`AiAdjustment`** — tracks whether AI Alignment reviewed or changed a tile.
+  Never replaces photographic credit; it only records the model's recommendation
+  and the application's validation decision.
 - **`MosaicSettings`** — `columns`, `rows`, `tileGap`, `tileBorder`,
   `aspectMode`, `abstraction`, `randomness`, `seed`/`seedLocked`, `diversity`,
   `maxTilesPerSource`, `allowRotation`, `sourceMix` (per-wavelength weighting),
   `includeTargetInSources`.
 - **`Mosaic`** — settings snapshot + `targetId` + `tiles` + `candidateCount` +
-  `engine: "visual" | "ai"`.
+  `createdAt` + `engine: "visual" | "ai"` (records which engine produced it).
 - **`MosaicAnalysisEngine`** — **the extension seam.** Any implementation of
   `analyzeImage`, `findCandidates`, `generateMosaic` can be dropped in, including
   a remote AI service. `Mosaic.engine` records which one produced a result.
