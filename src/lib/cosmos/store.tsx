@@ -174,7 +174,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         });
       }
       const targetImage = manifest.images.find((m) => m.type === "target") ?? manifest.images[0]!;
-      setImages(loaded);
+      setImages([...loaded, ...listUploads()]);
       setProject({
         id: "andromeda-demo",
         name: manifest.project,
