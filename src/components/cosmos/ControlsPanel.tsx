@@ -25,6 +25,12 @@ import {
 } from "@/components/ui/dialog";
 import { notifyGalleryChanged, saveGalleryEntry } from "@/lib/cosmos/gallery";
 import { PRESETS, useStudio } from "@/lib/cosmos/store";
+import {
+  CANVAS_ASPECT_LABEL,
+  CANVAS_ASPECT_MODES,
+  MAX_TARGET_SCALE,
+  MIN_TARGET_SCALE,
+} from "@/lib/cosmos/composition";
 import { WAVELENGTH_LABEL, type Wavelength } from "@/lib/cosmos/types";
 import { downloadCanvas, renderMosaic } from "@/lib/cosmos/render";
 import { Slider } from "@/components/ui/slider";
@@ -61,6 +67,44 @@ function Row({
   );
 }
 
+function ScoreDelta({
+  title,
+  before,
+  after,
+  digits,
+}: {
+  title: string;
+  before: { structure: number; brightness: number; similarity: number };
+  after: { structure: number; brightness: number; similarity: number };
+  digits: number;
+}) {
+  const rows: Array<[string, number, number]> = [
+    ["Structure", before.structure, after.structure],
+    ["Brightness", before.brightness, after.brightness],
+    ["Average match", before.similarity, after.similarity],
+  ];
+  return (
+    <div className="space-y-0.5">
+      <p className="label-xs text-muted-foreground">{title}</p>
+      {rows.map(([label, b, a]) => {
+        const d = a - b;
+        return (
+          <div key={label} className="flex items-baseline justify-between gap-2">
+            <dt className="label-xs">{label}</dt>
+            <dd className="data-mono text-foreground">
+              {b.toFixed(digits)} → {a.toFixed(digits)}{" "}
+              <span className={d >= 0 ? "text-primary" : "text-destructive"}>
+                {d >= 0 ? "+" : ""}
+                {d.toFixed(digits)}
+              </span>
+            </dd>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ControlsPanel() {
   const {
     settings,
@@ -84,6 +128,7 @@ export function ControlsPanel() {
   const [saved, setSaved] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
+  const [diagOpen, setDiagOpen] = useState(false);
 
   const estimate = estimateRequests(settings.columns * settings.rows);
 
@@ -278,10 +323,120 @@ export function ControlsPanel() {
               onValueChange={([v]) => patchSettings({ tileBorder: v ?? 0 })}
             />
           </Row>
-          <div className="flex items-center justify-between">
-            <span className="label-xs">Tile Aspect Mode</span>
-            <span className="data-mono text-muted-foreground">Uniform rectangular</span>
+          <div className="flex items-center justify-between rounded-sm border border-border p-2">
+            <div>
+              <span className="label-xs">Tile Aspect Mode</span>
+              <p className="data-mono text-muted-foreground">
+                {settings.aspectMode === "target"
+                  ? "Frame matches composition aspect"
+                  : "Square tiles"}
+              </p>
+            </div>
+            <div className="flex gap-1">
+              {(["target", "square"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => patchSettings({ aspectMode: m })}
+                  className={cn(
+                    "rounded-sm border px-1.5 py-0.5 font-mono text-[10px] uppercase transition-colors",
+                    settings.aspectMode === m
+                      ? "border-primary/60 bg-primary/15 text-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           </div>
+        </div>
+
+        {/* composition — Virtual Target Canvas */}
+        <div className="space-y-2 rounded-sm border border-border bg-background/40 p-3">
+          <div className="flex items-baseline justify-between">
+            <span className="label-xs">Composition</span>
+            <span className="data-mono text-muted-foreground">virtual target canvas</span>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="label-xs">Canvas Aspect</span>
+            <div className="flex flex-wrap gap-1">
+              {CANVAS_ASPECT_MODES.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => patchSettings({ canvasAspect: m })}
+                  className={cn(
+                    "rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors",
+                    settings.canvasAspect === m
+                      ? "border-primary/60 bg-primary/15 text-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {CANVAS_ASPECT_LABEL[m]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {settings.canvasAspect === "custom" && (
+            <Row label="Custom Aspect (w ÷ h)" value={settings.customAspect.toFixed(2)}>
+              <Slider
+                value={[settings.customAspect]}
+                min={0.5}
+                max={3}
+                step={0.01}
+                onValueChange={([v]) => patchSettings({ customAspect: v ?? 1.5 })}
+              />
+            </Row>
+          )}
+
+          <Row label="Target Scale" value={`${Math.round(settings.targetScale * 100)}%`}>
+            <Slider
+              value={[settings.targetScale]}
+              min={MIN_TARGET_SCALE}
+              max={MAX_TARGET_SCALE}
+              step={0.01}
+              disabled={!settings.mosaicPadding}
+              onValueChange={([v]) => patchSettings({ targetScale: v ?? 0.72 })}
+            />
+          </Row>
+          <Row label="Horizontal Position" value={`${Math.round(settings.targetOffsetX * 100)}%`}>
+            <Slider
+              value={[settings.targetOffsetX]}
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={!settings.mosaicPadding}
+              onValueChange={([v]) => patchSettings({ targetOffsetX: v ?? 0.5 })}
+            />
+          </Row>
+          <Row label="Vertical Position" value={`${Math.round(settings.targetOffsetY * 100)}%`}>
+            <Slider
+              value={[settings.targetOffsetY]}
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={!settings.mosaicPadding}
+              onValueChange={([v]) => patchSettings({ targetOffsetY: v ?? 0.5 })}
+            />
+          </Row>
+
+          <div className="flex items-center justify-between rounded-sm border border-border p-2">
+            <div>
+              <span className="label-xs">Mosaic Background Padding</span>
+              <p className="data-mono text-muted-foreground">
+                photographic dark-sky negative space
+              </p>
+            </div>
+            <Switch
+              checked={settings.mosaicPadding}
+              onCheckedChange={(v) => patchSettings({ mosaicPadding: v })}
+            />
+          </div>
+          <p className="font-mono text-[10px] text-muted-foreground">
+            Padding cells are matched against a dark-sky descriptor derived from the target and are
+            still filled with real source photographs.
+          </p>
         </div>
 
         {/* randomness / seed */}
@@ -406,7 +561,7 @@ export function ControlsPanel() {
 
       <div className="sticky bottom-0 mt-auto space-y-2 border-t border-border bg-surface p-3">
         {aiStats && (
-          <div className="space-y-1.5 rounded-sm border border-primary/40 bg-primary/5 p-2.5">
+          <div className="space-y-2 rounded-sm border border-primary/40 bg-primary/5 p-2.5">
             <div className="flex items-baseline justify-between">
               <span className="label-xs text-primary">AI Alignment Complete</span>
               <button
@@ -417,25 +572,59 @@ export function ControlsPanel() {
                 <X className="size-3" />
               </button>
             </div>
-            <p className="data-mono text-foreground">
-              {aiStats.replaced} tiles replaced · {aiStats.rotated} rotated · {aiStats.reviewed}{" "}
-              regions reviewed
-              {aiStats.regionsFlagged > 0 ? ` · ${aiStats.regionsFlagged} AI regions flagged` : ""}
-            </p>
-            <dl className="space-y-0.5">
-              {[
-                ["Structure", aiStats.before.structure, aiStats.after.structure],
-                ["Brightness", aiStats.before.brightness, aiStats.after.brightness],
-                ["Average match", aiStats.before.similarity, aiStats.after.similarity],
-              ].map(([label, before, after]) => (
-                <div key={label as string} className="flex items-baseline justify-between">
-                  <dt className="label-xs">{label as string}</dt>
-                  <dd className="data-mono text-foreground">
-                    {(before as number).toFixed(2)} → {(after as number).toFixed(2)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <ul className="data-mono space-y-0.5 text-foreground">
+              <li>{aiStats.reviewed} regions reviewed</li>
+              <li>{aiStats.replaced} tiles replaced</li>
+              <li>{aiStats.rotated} tiles rotated</li>
+              <li>{aiStats.regionsFlagged} AI regions flagged</li>
+            </ul>
+
+            <ScoreDelta title="Whole mosaic" before={aiStats.before} after={aiStats.after} digits={3} />
+            {aiStats.changedCount > 0 ? (
+              <ScoreDelta
+                title={`AI-changed tiles (${aiStats.changedCount})`}
+                before={aiStats.changedBefore}
+                after={aiStats.changedAfter}
+                digits={2}
+              />
+            ) : (
+              <p className="data-mono text-muted-foreground">
+                No tile change passed numerical validation.
+              </p>
+            )}
+
+            <button
+              onClick={() => setDiagOpen((v) => !v)}
+              className="data-mono flex w-full items-center justify-between border-t border-border pt-1.5 text-left text-muted-foreground hover:text-foreground"
+            >
+              <span>AI Diagnostics</span>
+              <span aria-hidden>{diagOpen ? "−" : "+"}</span>
+            </button>
+            {diagOpen && (
+              <dl className="space-y-0.5">
+                {[
+                  ["Model", aiStats.diagnostics.model],
+                  ["Global analysis received", aiStats.diagnostics.globalAnalysisReceived ? "Yes" : "No"],
+                  ["Global regions flagged", String(aiStats.diagnostics.globalRegionsFlagged)],
+                  ["Regions queued", String(aiStats.diagnostics.regionsQueued)],
+                  ["Successful responses", String(aiStats.diagnostics.successfulResponses)],
+                  ["CURRENT responses", String(aiStats.diagnostics.currentResponses)],
+                  ["Alternative recommendations", String(aiStats.diagnostics.alternativeRecommendations)],
+                  ["Accepted after validation", String(aiStats.diagnostics.acceptedAfterValidation)],
+                  ["Rejected after validation", String(aiStats.diagnostics.rejectedAfterValidation)],
+                  ["Average confidence", aiStats.diagnostics.averageConfidence.toFixed(2)],
+                  [
+                    "Avg changed-tile improvement",
+                    `${aiStats.diagnostics.averageChangedImprovement >= 0 ? "+" : ""}${aiStats.diagnostics.averageChangedImprovement.toFixed(3)}`,
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-2">
+                    <dt className="label-xs">{label}</dt>
+                    <dd className="data-mono truncate text-foreground">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </div>
         )}
 

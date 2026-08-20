@@ -13,7 +13,6 @@
 
 import {
   browserEngine,
-  describeRegion,
   loadImage,
   makeAnalysisBitmap,
   scoreFeatures,
@@ -30,8 +29,9 @@ import {
   type GlobalAnalysis,
   type SheetCandidate,
 } from "./ai-analysis";
-import { NavigatorError, runQueue } from "./navigator";
+import { NavigatorError, resolveModel, runQueue } from "./navigator";
 import { rankWeakTiles, targetCellImportance } from "./registration";
+import { computeVirtualTargetLayout, describeVirtualTargetCell } from "./composition";
 import type {
   CandidateCrop,
   EngineProgress,
@@ -66,14 +66,42 @@ export interface AiProgress {
   reviewedRegions?: number;
 }
 
+export interface ScoreTriple {
+  structure: number;
+  brightness: number;
+  similarity: number;
+}
+
+/** Development diagnostics — never includes the API key. */
+export interface AiDiagnostics {
+  model: string;
+  globalAnalysisReceived: boolean;
+  globalRegionsFlagged: number;
+  regionsQueued: number;
+  successfulResponses: number;
+  currentResponses: number;
+  alternativeRecommendations: number;
+  acceptedAfterValidation: number;
+  rejectedAfterValidation: number;
+  averageConfidence: number;
+  /** mean similarity gain across accepted tiles */
+  averageChangedImprovement: number;
+}
+
 export interface AiAlignmentStats {
   reviewed: number;
   replaced: number;
   rotated: number;
   regionsFlagged: number;
-  before: { structure: number; brightness: number; similarity: number };
-  after: { structure: number; brightness: number; similarity: number };
+  /** whole-mosaic averages */
+  before: ScoreTriple;
+  after: ScoreTriple;
+  /** averages restricted to tiles the AI actually changed */
+  changedCount: number;
+  changedBefore: ScoreTriple;
+  changedAfter: ScoreTriple;
   overall: GlobalAnalysis["overall"] | null;
+  diagnostics: AiDiagnostics;
 }
 
 export interface AiAlignmentResult {
@@ -180,6 +208,8 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
 
     const targetEl = await loadImage(target.url);
     const targetBmp = makeAnalysisBitmap(targetEl, 640);
+    // exactly the same composition geometry the deterministic engine reconstructed
+    const layout = baseline.layout ?? computeVirtualTargetLayout(settings, targetBmp);
     const { columns, rows } = settings;
 
     report({
@@ -188,9 +218,9 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
       value: 0.32,
       detail: "reduced-resolution analysis copies",
     });
-    const cells = targetCellImportance(targetBmp, columns, rows);
+    const cells = targetCellImportance(targetBmp, columns, rows, layout);
     const [targetImage, mosaicImage] = await Promise.all([
-      renderTargetAnalysisImage(target),
+      renderTargetAnalysisImage(target, layout),
       renderMosaicAnalysisImage(baseline, sources),
     ]);
     abortIfCancelled();
@@ -232,12 +262,14 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
     interface Refinement {
       tileId: string;
       candidateIndex: number;
-      rotation: 0 | 90 | 180 | 270;
       confidence: number;
       reason: string;
     }
 
     let reviewed = 0;
+    let responded = 0;
+    let currentResponses = 0;
+    let alternativeResponses = 0;
     const results = await runQueue<(typeof weak)[number], Refinement | null>(
       weak,
       async (entry) => {
@@ -261,6 +293,7 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
           sourceById,
           columns,
           rows,
+          layout,
         );
         const choice = await chooseCandidate(
           sheetImage,
@@ -278,17 +311,18 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
           reviewedRegions: reviewed,
         });
 
+        responded++;
         const id = choice.candidateId.trim().toUpperCase();
-        if (id === "CURRENT") return null;
+        if (id === "CURRENT") {
+          currentResponses++;
+          return null;
+        }
         const picked = sheet.find((s) => s.letter === id);
         if (!picked) return null;
-        const rotation = rotations.includes(choice.rotation ?? tile.rotation)
-          ? ((choice.rotation ?? tile.rotation) as 0 | 90 | 180 | 270)
-          : tile.rotation;
+        alternativeResponses++;
         return {
           tileId: tile.id,
           candidateIndex: picked.candidate.index,
-          rotation,
           confidence: choice.confidence ?? 0.5,
           reason: choice.reason ?? "Better structural correspondence with the target region.",
         };
@@ -306,6 +340,10 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
 
     let replaced = 0;
     let rotated = 0;
+    let accepted = 0;
+    let rejected = 0;
+    let confidenceSum = 0;
+    let improvementSum = 0;
 
     const tiles = baseline.tiles.map((tile) => {
       if (!reviewedIds.has(tile.id)) return { ...tile };
@@ -319,14 +357,28 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
       const cand = browserEngine.candidates[rec.candidateIndex];
       if (!cand) return base;
 
-      const cell = describeRegion(
+      const cell = describeVirtualTargetCell(
         targetBmp,
-        tile.column / columns,
-        tile.row / rows,
-        1 / columns,
-        1 / rows,
-      );
-      const parts = scoreFeatures(cell, browserEngine.featuresFor(cand.index, rec.rotation), weights);
+        layout,
+        tile.row,
+        tile.column,
+        rows,
+        columns,
+      ).features;
+
+      // Rotation is decided numerically, never by the model: evaluate the chosen
+      // photograph at every permitted rotation and keep the best-scoring one.
+      let bestRotation: 0 | 90 | 180 | 270 = tile.rotation;
+      let parts = scoreFeatures(cell, browserEngine.featuresFor(cand.index, bestRotation), weights);
+      for (const rot of rotations) {
+        const p = scoreFeatures(cell, browserEngine.featuresFor(cand.index, rot), weights);
+        const better = p.structure * 0.55 + p.similarity * 0.45;
+        const current = parts.structure * 0.55 + parts.similarity * 0.45;
+        if (better > current) {
+          parts = p;
+          bestRotation = rot;
+        }
+      }
 
       // The application, not the model, has the final say.
       const structureDrop = tile.structureScore - parts.structure;
@@ -334,10 +386,16 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
       const similarityDrop = tile.similarityScore - parts.similarity;
       const improves = parts.structure > tile.structureScore || parts.similarity > tile.similarityScore;
       const severe = structureDrop > 0.12 || brightnessDrop > 0.12 || similarityDrop > 0.08;
-      if (!improves || severe) return base;
+      if (!improves || severe) {
+        rejected++;
+        return base;
+      }
 
+      accepted++;
+      confidenceSum += rec.confidence;
+      improvementSum += parts.similarity - tile.similarityScore;
       if (cand.index !== tile.candidateIndex) replaced++;
-      if (rec.rotation !== tile.rotation) rotated++;
+      if (bestRotation !== tile.rotation) rotated++;
 
       return {
         ...base,
@@ -348,7 +406,7 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
         cropWidth: cand.w,
         cropHeight: cand.h,
         scale: cand.scale,
-        rotation: rec.rotation,
+        rotation: bestRotation,
         similarityScore: parts.similarity,
         brightnessScore: parts.brightness,
         colorScore: parts.color,
@@ -377,6 +435,19 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
       engine: "ai",
     };
 
+    const changedIds = new Set(
+      tiles.filter((t) => t.aiAdjustment?.changed).map((t) => t.id),
+    );
+    const changedBefore = baseline.tiles.filter((t) => changedIds.has(t.id));
+    const changedAfter = tiles.filter((t) => changedIds.has(t.id));
+
+    let model = "unknown";
+    try {
+      model = await resolveModel(signal);
+    } catch {
+      model = "unresolved";
+    }
+
     return {
       mosaic,
       baseline,
@@ -387,7 +458,23 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
         regionsFlagged: analysis?.regions.length ?? 0,
         before: averages(baseline.tiles),
         after: averages(tiles),
+        changedCount: changedIds.size,
+        changedBefore: averages(changedBefore),
+        changedAfter: averages(changedAfter),
         overall: analysis?.overall ?? null,
+        diagnostics: {
+          model,
+          globalAnalysisReceived: !!analysis,
+          globalRegionsFlagged: analysis?.regions.length ?? 0,
+          regionsQueued: weak.length,
+          successfulResponses: responded,
+          currentResponses,
+          alternativeRecommendations: alternativeResponses,
+          acceptedAfterValidation: accepted,
+          rejectedAfterValidation: rejected,
+          averageConfidence: accepted ? confidenceSum / accepted : 0,
+          averageChangedImprovement: accepted ? improvementSum / accepted : 0,
+        },
       },
     };
   }

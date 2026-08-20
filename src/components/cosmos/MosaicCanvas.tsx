@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Minus, Plus, Maximize2 } from "lucide-react";
 import { useStudio } from "@/lib/cosmos/store";
+import { drawVirtualTargetFrame } from "@/lib/cosmos/composition";
 import { renderMosaic } from "@/lib/cosmos/render";
+import { loadImage } from "@/lib/cosmos/engine";
 import { cn } from "@/lib/utils";
 
 export type CanvasView = "target" | "reconstruction" | "baseline" | "compare";
@@ -39,6 +41,9 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const [hoverTileId, setHoverTileId] = useState<string | null>(null);
   const [showAiChanges, setShowAiChanges] = useState(true);
   const baselineRef = useRef<HTMLCanvasElement>(null);
+  const targetRef = useRef<HTMLCanvasElement>(null);
+  const compareRef = useRef<HTMLCanvasElement>(null);
+  const layout = mosaic?.layout ?? null;
   const adjusted = (mosaic?.tiles ?? []).filter((t) => t.aiAdjustment);
 
   useEffect(() => {
@@ -59,6 +64,29 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     if (!canvas || !aiBaseline || view !== "baseline") return;
     void renderMosaic(canvas, aiBaseline, images);
   }, [aiBaseline, images, view]);
+
+  // Target and Compare views render the target through the shared Virtual Target
+  // Canvas — same aspect ratio, same padding, same position as the reconstruction.
+  useEffect(() => {
+    if (!target || !layout) return;
+    const canvas = view === "target" ? targetRef.current : view === "compare" ? compareRef.current : null;
+    if (!canvas) return;
+    let cancelled = false;
+    void loadImage(target.url).then((img) => {
+      if (cancelled) return;
+      const mosaicCanvas = canvasRef.current;
+      const width =
+        view === "compare" && mosaicCanvas?.width ? mosaicCanvas.width : 1600;
+      const height =
+        view === "compare" && mosaicCanvas?.height
+          ? mosaicCanvas.height
+          : Math.round(1600 / Math.max(0.2, layout.canvasAspect));
+      drawVirtualTargetFrame(canvas, img, layout, width, height);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [target, layout, view, ready, mosaic]);
 
   const reset = useCallback(() => {
     setCamera({ zoom: 1, offset: { x: 0, y: 0 } });
@@ -194,13 +222,21 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
             transformOrigin: "center center",
           }}
         >
-          {view === "target" && target && (
-            <img
-              src={target.url}
-              alt={`Target photograph: ${target.name}`}
-              className="max-h-full max-w-full object-contain"
-            />
-          )}
+          {view === "target" &&
+            target &&
+            (layout ? (
+              <canvas
+                ref={targetRef}
+                aria-label={`Target photograph in composition: ${target.name}`}
+                className="max-h-full max-w-full object-contain"
+              />
+            ) : (
+              <img
+                src={target.url}
+                alt={`Target photograph: ${target.name}`}
+                className="max-h-full max-w-full object-contain"
+              />
+            ))}
 
           {view === "baseline" &&
             (aiBaseline ? (
@@ -252,10 +288,11 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
                 onPointerUp={onCanvasPointerUp}
                 className={canvasClass}
               />
-              <img
-                src={target.url}
-                alt={`Target photograph: ${target.name}`}
-                className="pointer-events-none absolute inset-0 h-full w-full object-fill"
+              {/* same VirtualTargetLayout as the reconstruction — never stretched */}
+              <canvas
+                ref={compareRef}
+                aria-label={`Target photograph in composition: ${target.name}`}
+                className="pointer-events-none absolute inset-0 h-full w-full"
                 style={{ clipPath: `inset(0 ${100 - split}% 0 0)` }}
               />
               <div

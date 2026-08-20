@@ -3,45 +3,49 @@
  * Pure mathematics — no network calls, no pixel synthesis.
  */
 
-import { describeRegion, type AnalysisBitmap } from "./engine";
-import type { Mosaic, MosaicTile } from "./types";
+import { cellImportance, describeVirtualTargetCell } from "./composition";
+import { type AnalysisBitmap } from "./engine";
+import type { ImageFeatures, Mosaic, MosaicTile, VirtualTargetLayout } from "./types";
 
 export interface CellImportance {
-  /** 0..1 — how structurally significant this target cell is. */
+  /** 0..1 — how structurally significant this composition cell is. */
   importance: number;
   luminance: number;
   contrast: number;
   edgeDensity: number;
+  /** fraction covered by the real target photograph */
+  coverage: number;
 }
 
-/** Per-cell importance of the target: bright, high-contrast, edge-rich cells matter most. */
+/**
+ * Per-cell importance across the Virtual Target Canvas: bright, high-contrast,
+ * edge-rich cells inside the deep-sky object matter most; composition padding
+ * matters less but is still ranked.
+ */
 export function targetCellImportance(
   bmp: AnalysisBitmap,
   columns: number,
   rows: number,
+  layout: VirtualTargetLayout,
 ): CellImportance[] {
-  const cells: CellImportance[] = [];
+  const raw: Array<{ f: ImageFeatures; coverage: number }> = [];
   let maxContrast = 0.0001;
   let maxEdge = 0.0001;
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < columns; col++) {
-      const f = describeRegion(bmp, col / columns, row / rows, 1 / columns, 1 / rows);
-      maxContrast = Math.max(maxContrast, f.contrast);
-      maxEdge = Math.max(maxEdge, f.edgeDensity);
-      cells.push({
-        importance: 0,
-        luminance: f.luminance,
-        contrast: f.contrast,
-        edgeDensity: f.edgeDensity,
-      });
+      const c = describeVirtualTargetCell(bmp, layout, row, col, rows, columns);
+      maxContrast = Math.max(maxContrast, c.features.contrast);
+      maxEdge = Math.max(maxEdge, c.features.edgeDensity);
+      raw.push({ f: c.features, coverage: c.coverage });
     }
   }
-  for (const c of cells) {
-    const contrast = c.contrast / maxContrast;
-    const edge = c.edgeDensity / maxEdge;
-    c.importance = Math.min(1, 0.25 + 0.35 * contrast + 0.25 * edge + 0.3 * c.luminance);
-  }
-  return cells;
+  return raw.map(({ f, coverage }) => ({
+    importance: cellImportance(f, maxContrast, maxEdge, coverage),
+    luminance: f.luminance,
+    contrast: f.contrast,
+    edgeDensity: f.edgeDensity,
+    coverage,
+  }));
 }
 
 export function cellAt(cells: CellImportance[], columns: number, row: number, column: number) {

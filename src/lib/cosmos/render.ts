@@ -1,3 +1,4 @@
+import { tileAspectFor } from "./composition";
 import { loadImage } from "./engine";
 import type { Mosaic, MosaicTile, SourceImage } from "./types";
 
@@ -19,10 +20,16 @@ export async function preloadImages(images: SourceImage[]) {
   return map;
 }
 
+/**
+ * Tile geometry from the shared composition. In "target" mode the mosaic frame
+ * matches the Virtual Target Canvas aspect, so tiles become uniformly rectangular
+ * (never stretched per-tile); in "square" mode tiles stay square.
+ */
 function tileGeometry(mosaic: Mosaic, tilePx: number) {
-  const { columns, rows, aspectMode } = mosaic.settings;
+  const { columns, rows } = mosaic.settings;
+  const aspect = tileAspectFor(mosaic.settings, mosaic.layout); // tileW / tileH
   const tileW = tilePx;
-  const tileH = aspectMode === "square" ? tilePx : tilePx;
+  const tileH = Math.max(4, Math.round(tilePx / aspect));
   return { tileW, tileH, width: columns * tileW, height: rows * tileH };
 }
 
@@ -98,12 +105,13 @@ export async function renderAssemblyMap(
   highlightSourceId?: string | null,
 ) {
   const cell = 84;
+  const cellH = Math.max(24, Math.round(cell / tileAspectFor(mosaic.settings, mosaic.layout)));
   const { columns, rows } = mosaic.settings;
   const work = document.createElement("canvas");
   await renderMosaic(work, mosaic, sources, { tilePx: cell, gap: 0, border: 0 });
 
   canvas.width = columns * cell;
-  canvas.height = rows * cell;
+  canvas.height = rows * cellH;
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(work, 0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "rgba(9,11,15,0.62)";
@@ -115,20 +123,20 @@ export async function renderAssemblyMap(
 
   for (const tile of mosaic.tiles) {
     const x = tile.column * cell;
-    const y = tile.row * cell;
+    const y = tile.row * cellH;
     const isHighlight = highlightSourceId && tile.sourceImageId === highlightSourceId;
     if (isHighlight) {
       ctx.fillStyle = "rgba(240,182,74,0.28)";
-      ctx.fillRect(x, y, cell, cell);
+      ctx.fillRect(x, y, cell, cellH);
     }
     ctx.strokeStyle = isHighlight ? "rgba(240,182,74,0.9)" : "rgba(160,180,205,0.35)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+    ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cellH - 1);
     ctx.fillStyle = isHighlight ? "#f6d79c" : "rgba(226,235,245,0.92)";
-    ctx.fillText(tile.id, x + cell / 2, y + cell / 2);
+    ctx.fillText(tile.id, x + cell / 2, y + cellH / 2);
     ctx.fillStyle = "rgba(160,180,205,0.75)";
     ctx.font = `400 ${Math.round(cell * 0.15)}px "IBM Plex Mono", monospace`;
-    ctx.fillText(tile.sourceImageId, x + cell / 2, y + cell * 0.78);
+    ctx.fillText(tile.sourceImageId, x + cell / 2, y + cellH * 0.78);
     ctx.font = `500 ${Math.round(cell * 0.24)}px "IBM Plex Mono", monospace`;
   }
 }

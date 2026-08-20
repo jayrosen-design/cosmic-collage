@@ -7,9 +7,9 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { computeVirtualTargetLayout, describeVirtualTargetCell } from "./composition";
 import {
   browserEngine,
-  describeRegion,
   loadImage,
   makeAnalysisBitmap,
   scoreFeatures,
@@ -24,6 +24,7 @@ import type {
   MosaicTile,
   Project,
   SourceImage,
+  VirtualTargetLayout,
   Wavelength,
 } from "./types";
 import { fileToStoredImage, listUploads, removeUpload, saveUploads, updateUpload } from "./uploads";
@@ -60,6 +61,12 @@ export const DEFAULT_SETTINGS: MosaicSettings = {
   tileGap: 1,
   tileBorder: 0,
   aspectMode: "target",
+  canvasAspect: "auto",
+  customAspect: 1.5,
+  targetScale: 0.72,
+  targetOffsetX: 0.5,
+  targetOffsetY: 0.5,
+  mosaicPadding: true,
   abstraction: 0.55,
   randomness: 0.2,
   seed: 734159,
@@ -158,6 +165,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const targetBmp = useRef<AnalysisBitmap | null>(null);
+  const layoutRef = useRef<VirtualTargetLayout | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState<AiProgress | null>(null);
   const [aiBaseline, setAiBaseline] = useState<Mosaic | null>(null);
@@ -250,6 +258,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       );
       const el = await loadImage(target.url);
       targetBmp.current = makeAnalysisBitmap(el, 640);
+      layoutRef.current = result.layout ?? null;
       setMosaic(result);
     } finally {
       setGenerating(false);
@@ -299,6 +308,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
           setMosaic(m);
         },
       });
+      layoutRef.current = result.mosaic.layout ?? layoutRef.current;
       setAiBaseline(result.baseline);
       setMosaic(result.mosaic);
       setAiStats(result.stats);
@@ -333,13 +343,15 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     (tile: MosaicTile, mode: InspectorMode) => {
       const bmp = targetBmp.current;
       if (!bmp || browserEngine.candidates.length === 0) return [];
-      const cell = describeRegion(
+      const layout = mosaic?.layout ?? computeVirtualTargetLayout(settings, bmp);
+      const cell = describeVirtualTargetCell(
         bmp,
-        tile.column / settings.columns,
-        tile.row / settings.rows,
-        1 / settings.columns,
-        1 / settings.rows,
-      );
+        layout,
+        tile.row,
+        tile.column,
+        settings.rows,
+        settings.columns,
+      ).features;
       const abstraction =
         mode === "abstract" ? Math.min(1, settings.abstraction + 0.35) : mode === "similar" ? 0.1 : settings.abstraction;
       const w = weightsForAbstraction(abstraction);
@@ -361,7 +373,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         .sort((a, b) => b.score - a.score);
       return scored.filter((s) => s.candidate.index !== tile.candidateIndex).slice(0, 8);
     },
-    [settings],
+    [settings, mosaic?.layout],
   );
 
   const mutateTile = useCallback(
@@ -386,13 +398,15 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
           structure: t.structureScore,
         };
         if (bmp) {
-          const cell = describeRegion(
+          const layout = layoutRef.current ?? computeVirtualTargetLayout(settings, bmp);
+          const cell = describeVirtualTargetCell(
             bmp,
-            t.column / settings.columns,
-            t.row / settings.rows,
-            1 / settings.columns,
-            1 / settings.rows,
-          );
+            layout,
+            t.row,
+            t.column,
+            settings.rows,
+            settings.columns,
+          ).features;
           parts = scoreFeatures(cell, cand.features, weightsForAbstraction(settings.abstraction));
         }
         return {
@@ -411,7 +425,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         };
       });
     },
-    [mutateTile, settings.abstraction, settings.columns, settings.rows],
+    [mutateTile, settings],
   );
 
   const rotateTile = useCallback(
