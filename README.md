@@ -390,7 +390,114 @@ pool in memory so the Tile Inspector can rank alternatives instantly.
 
 ---
 
-## 6. State (`src/lib/cosmos/store.tsx`)
+## 6. AI Alignment (`src/lib/cosmos/ai-engine.ts`)
+
+AI Alignment is an optional refinement pass that uses the UF NaviGator Toolkit
+(`https://api.ai.it.ufl.edu/v1`) as an **artistic curator**, not a generator.
+Every pixel in the final collage still comes from the existing real source
+photographs; the AI only selects, rotates, and arranges fragments that are
+already in the archive. The implementation is a second `MosaicAnalysisEngine`
+with `mode: "ai"` so the rest of the UI (inspector, assembly map, CSV) works
+unchanged.
+
+### 6.1 Design principles
+
+- **The AI is an advisor; the application has the final say.** All model
+  recommendations are numerically re-validated with the deterministic
+  `scoreFeatures` function before they are accepted.
+- **No synthetic imagery.** The vision model only ever receives reduced-resolution
+  copies of existing photographs and chooses between real crops. It cannot paint,
+  blend, inpaint, or hallucinate pixels.
+- **Provenance is preserved.** Every accepted change writes an `AiAdjustment`
+  record into the tile, including the previous source, rotation, scores, the
+  model's reason, and its confidence. Rejected changes still record `reviewed:
+true`.
+- **Privacy by default.** The NaviGator API key is stored only in the browser's
+  `localStorage`; it is never written into mosaics, gallery entries, exported
+  PNGs, CSV manifests, URLs, logs, or error messages.
+- **CORS proxy.** Because the NaviGator API does not send CORS headers, a
+  same-origin TanStack server route (`src/routes/api/navigator.$.ts`) forwards
+  requests to the upstream. The browser sees `/api/navigator/*`; the key still
+  travels in the `Authorization` header, and the proxy never logs it.
+
+### 6.2 The five-phase pipeline
+
+`AIAnalysisEngine.align()` runs these phases in order:
+
+1. **Baseline generation** — produces a deterministic mosaic with the
+   `BrowserAnalysisEngine` using the current settings and locked tiles. This is
+   always the starting point, so the user never loses the non-AI result.
+2. **Global structural comparison** — `renderTargetAnalysisImage()` and
+   `renderMosaicAnalysisImage()` create reduced-resolution JPEGs (≤1280px) and
+   send them to `analyzeGlobalAlignment()`. NaviGator returns overall scores for
+   structure, brightness, orientation, and visual coherence, plus up to 24
+   regions where a different tile could help.
+3. **Weak-region detection** — deterministic maths ranks the worst tiles:
+   - `targetCellImportance()` measures contrast, edge density, and luminance of
+     each target cell.
+   - `neighborDisagreement()` measures how much a tile's brightness breaks local
+     continuity compared with the target.
+   - `rankWeakTiles()` combines similarity/structure/brightness scores, the cell
+     importance map, neighbour disagreement, and any AI-flagged region weight.
+   - Up to ~12% of tiles (bounded by `MIN_REVIEW_TILES` and `MAX_REVIEW_TILES`)
+     are queued for review; locked tiles are skipped.
+4. **Candidate contact sheets** — for each weak tile, `buildContactSheet()` draws
+   a 4×4 grid: the target cell with surroundings, the current tile, and up to eight
+   alternative crops from the candidate pool labelled A..H. `chooseCandidate()`
+   sends the sheet to NaviGator and asks it to pick the best real fragment, or
+   return `"CURRENT"`. Concurrency is capped at 2 requests with exponential
+   backoff on transient errors.
+5. **Numerical validation and application** — every recommendation is re-scored
+   with `scoreFeatures()` at the chosen rotation. The application accepts it only
+   if it improves structure or similarity, and only if no key metric drops
+   severely (structure/brightness >0.12, similarity >0.08). Accepted changes are
+   written into the final `Mosaic` with `engine: "ai"` and full `AiAdjustment`
+   provenance.
+
+### 6.3 Files and responsibilities
+
+| File | Responsibility |
+| --- | --- |
+| `src/lib/cosmos/navigator.ts` | API key/model storage in `localStorage`, model discovery (`listModels`, `resolveModel`), `visionJson()` multimodal requests, `runQueue()` with retries/backoff, typed `NavigatorError` kinds. |
+| `src/lib/cosmos/ai-engine.ts` | `AIAnalysisEngine` implementing `MosaicAnalysisEngine`; orchestrates the 5-phase pipeline; emits `AiProgress` and `AiAlignmentStats`. |
+| `src/lib/cosmos/ai-analysis.ts` | `renderTargetAnalysisImage()`, `renderMosaicAnalysisImage()`, `buildContactSheet()`, `analyzeGlobalAlignment()`, `chooseCandidate()`; Zod schemas for structured JSON responses. |
+| `src/lib/cosmos/registration.ts` | `targetCellImportance()`, `neighborDisagreement()`, `rankWeakTiles()` — pure deterministic maths with no network calls. |
+| `src/routes/api/navigator.$.ts` | Same-origin proxy to `https://api.ai.it.ufl.edu/v1`; forwards method, body, and `Authorization` header; required because the upstream lacks CORS. |
+
+### 6.4 UI wiring
+
+- **ControlsPanel** shows a "✦ AI Alignment" button and a settings gear. The
+  settings dialog accepts a NaviGator key, selects a model (or "auto"), and tests
+  the connection through the proxy. A consent dialog is shown before the first
+  run because reduced-resolution images are sent to a third-party model.
+- **StudioProvider** adds `aiGenerating`, `aiProgress`, `aiBaseline`, `aiStats`,
+  `aiError`, and `navigatorConnected` to its state. `generateWithAI()` calls
+  `aiEngine.align()` and stores the refined mosaic; `cancelAIGeneration()` aborts
+  via `AbortController`.
+- **MosaicCanvas** adds a "baseline" view so the user can compare the
+  pre-AI reconstruction side-by-side with the refined result, and a
+  `showAiChanges` overlay that highlights tiles modified by AI Alignment.
+- **TileInspector** displays the `AiAdjustment` provenance: whether the tile was
+  reviewed, changed, the previous source/rotation, the model's reason, and its
+  confidence.
+
+### 6.5 Extending the AI engine
+
+- **Swap the vision model** — change `PREFERRED_MODELS` in `navigator.ts`. The
+  client auto-detects vision-capable models from the NaviGator `/models` endpoint.
+- **Change what is sent for review** — edit `rankWeakTiles()` in
+  `registration.ts` to add other local metrics (e.g., colour mismatch, edge
+  direction disagreement).
+- **Change the prompt** — `GLOBAL_PROMPT` and `SHEET_PROMPT` in `ai-analysis.ts`
+  are plain strings. Keep the instruction that the model must not generate or
+  modify pixels, and keep the Zod schemas in sync with the expected JSON shape.
+- **Add a different AI backend** — implement the same `MosaicAnalysisEngine`
+  interface in a new engine file and register it in `store.tsx` alongside
+  `browserEngine` and `aiEngine`. The UI and export paths do not need to change.
+
+---
+
+## 7. State (`src/lib/cosmos/store.tsx`)
 
 `StudioProvider` is mounted once in `__root.tsx` and exposes `useStudio()`:
 
