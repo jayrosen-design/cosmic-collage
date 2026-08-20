@@ -1,0 +1,67 @@
+{
+  "project": "Pinwheel Galaxy Demo",
+  "object": "M101 - Pinwheel Galaxy",
+  "description": "Reconstruct the Pinwheel Galaxy from visible, ultraviolet, infrared, and multi-observatory NASA-hosted observations.",
+  "images": [
+    {
+      "id": "HST_M101_TARGET",
+      "nasaId": "STScI-01EVT5S0014XSYMBAATA2CC769",
+      "file": "M101_HUBBLE_VISIBLE.jpg",
+      "url": "/__l5e/assets-v1/b11fc588-c3e4-47a1-99c7-3769f6081256/M101_HUBBLE_VISIBLE.jpg",
+      "title": "Hubble Image of M101",
+      "mission": "Hubble Space Telescope",
+      "wavelength": "rgb",
+      "type": "target",
+      "tags": ["galaxy", "spiral galaxy", "visible", "star formation", "dust lanes", "galaxy core", "m101"],
+      "credit": "NASA, ESA, K. Kuntz (JHU), F. Bresolin (University of Hawaii), J. Trauger (JPL), J. Mould (NOAO), Y.-H. Chu (UIUC), and STScI"
+    },
+    {
+      "id": "PIA14403",
+      "nasaId": "PIA14403",
+      "file": "PIA14403_WISE_IR.jpg",
+      "url": "/__l5e/assets-v1/f074176b-ee11-4d6f-bdab-fd89faf44f20/PIA14403_WISE_IR.jpg",
+      "title": "M 101: The Pinwheel Galaxy",
+      "mission": "WISE",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["galaxy", "infrared", "spiral arms", "dust", "star formation", "m101"],
+      "credit": "NASA/JPL-Caltech/UCLA"
+    },
+    {
+      "id": "PIA04630",
+      "nasaId": "PIA04630",
+      "file": "PIA04630_GALEX_UV.jpg",
+      "url": "/__l5e/assets-v1/8f407b69-76c4-438c-810f-e174b755917a/PIA04630_GALEX_UV.jpg",
+      "title": "Galaxy M101",
+      "mission": "GALEX + Digital Sky Survey",
+      "wavelength": "uv",
+      "type": "source",
+      "tags": ["galaxy", "ultraviolet", "star formation", "spiral arms", "m101"],
+      "credit": "NASA/JPL/Caltech"
+    },
+    {
+      "id": "PIA15630",
+      "nasaId": "PIA15630",
+      "file": "PIA15630_MULTI_OBSERVATORY_COMPOSITE.jpg",
+      "url": "/__l5e/assets-v1/9960f2e6-e737-4044-a3b6-9ffd491efb14/PIA15630_MULTI_OBSERVATORY_COMPOSITE.jpg",
+      "title": "Pinwheel Galaxy Rainbow",
+      "mission": "Spitzer + Hubble + GALEX + Chandra",
+      "wavelength": "composite",
+      "type": "source",
+      "tags": ["galaxy", "composite", "infrared", "visible", "ultraviolet", "x-ray", "spiral arms", "m101"],
+      "credit": "NASA/JPL-Caltech/ESA/STScI/CXC"
+    },
+    {
+      "id": "SPITZER_M101",
+      "nasaId": "STScI-01EVT5Q51DF5PZV212ZVRP354V",
+      "file": "M101_SPITZER_IR.jpg",
+      "url": "/__l5e/assets-v1/fb135923-1430-4943-b290-f20e2196efd6/M101_SPITZER_IR.jpg",
+      "title": "Spitzer Image of M101",
+      "mission": "Spitzer Space Telescope",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["galaxy", "infrared", "dust lanes", "star formation", "spiral arms", "m101"],
+      "credit": "NASA, Jet Propulsion Laboratory/Caltech, and K. Gordon (STScI)"
+    }
+  ]
+}
