@@ -78,13 +78,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Cosmos Collage" },
+      { title: "Cosmic Collage" },
       {
         name: "description",
         content:
           "Reconstruct an astronomical image from fragments of real astronomical photographs.",
       },
-      { property: "og:title", content: "Cosmos Collage" },
+      { property: "og:title", content: "Cosmic Collage" },
       {
         property: "og:description",
         content:

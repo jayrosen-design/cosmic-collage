@@ -7,7 +7,7 @@ import { useStudio } from "@/lib/cosmos/store";
 export const Route = createFileRoute("/physical/$id")({
   head: () => ({
     meta: [
-      { title: "Physical Collage — Cosmos Collage" },
+      { title: "Physical Collage — Cosmic Collage" },
       {
         name: "description",
         content:
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/physical/$id")({
       { property: "og:title", content: "Physical Collage Planning" },
       {
         property: "og:description",
-        content: "Print, cut, sort, assemble — Cosmos Collage as a construction blueprint.",
+        content: "Print, cut, sort, assemble — Cosmic Collage as a construction blueprint.",
       },
     ],
   }),

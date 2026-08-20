@@ -1,6 +1,8 @@
-import { Dices, Lock, LockOpen, RefreshCw, Sparkles } from "lucide-react";
+import { Dices, Download, Lock, LockOpen, RefreshCw, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { PRESETS, useStudio } from "@/lib/cosmos/store";
 import { WAVELENGTH_LABEL, type Wavelength } from "@/lib/cosmos/types";
+import { downloadCanvas, renderMosaic } from "@/lib/cosmos/render";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -36,7 +38,22 @@ function Row({
 }
 
 export function ControlsPanel() {
-  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic } = useStudio();
+  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic, images } =
+    useStudio();
+  const [exporting, setExporting] = useState(false);
+
+  const downloadPng = async () => {
+    if (!mosaic) return;
+    setExporting(true);
+    try {
+      const canvas = document.createElement("canvas");
+      await renderMosaic(canvas, mosaic, images, { tilePx: 96 });
+      downloadCanvas(canvas, "cosmic-collage.png");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const abstractionLabel =
     settings.abstraction <= 0.25
       ? "Faithful reconstruction"
@@ -307,7 +324,7 @@ export function ControlsPanel() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 mt-auto border-t border-border bg-surface p-3">
+      <div className="sticky bottom-0 mt-auto space-y-2 border-t border-border bg-surface p-3">
         <Button
           onClick={() => void generate()}
           disabled={generating}
@@ -319,6 +336,15 @@ export function ControlsPanel() {
             <Sparkles className="size-3.5" />
           )}
           {generating ? "Working" : "Generate Mosaic"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => void downloadPng()}
+          disabled={!mosaic || exporting}
+          className="w-full gap-2 rounded-sm border-border bg-background font-mono text-xs tracking-wider uppercase"
+        >
+          <Download className="size-3.5" />
+          {exporting ? "Preparing PNG" : "Download PNG"}
         </Button>
       </div>
     </div>
