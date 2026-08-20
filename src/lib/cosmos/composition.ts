@@ -302,3 +302,21 @@ export function drawVirtualTargetCanvas(
   );
   return { width: canvas.width, height: canvas.height };
 }
+
+/* ------------------------------------------------------------------ */
+/* cell importance (shared by the matcher and weak-region ranking)     */
+/* ------------------------------------------------------------------ */
+
+/** Structural significance of one composition cell, 0..1. */
+export function cellImportance(
+  f: ImageFeatures,
+  maxContrast: number,
+  maxEdge: number,
+  coverage: number,
+): number {
+  const contrast = f.contrast / Math.max(0.0001, maxContrast);
+  const edge = f.edgeDensity / Math.max(0.0001, maxEdge);
+  const base = Math.min(1, 0.25 + 0.35 * contrast + 0.25 * edge + 0.3 * f.luminance);
+  // padding cells still matter, but the deep-sky object matters more
+  return base * (0.3 + 0.7 * clamp(coverage));
+}
