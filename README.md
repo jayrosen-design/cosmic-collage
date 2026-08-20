@@ -452,8 +452,9 @@ unchanged.
      each target cell.
    - `neighborDisagreement()` measures how much a tile's brightness breaks local
      continuity compared with the target.
-   - `rankWeakTiles()` combines similarity/structure/brightness scores, the cell
-     importance map, neighbour disagreement, and any AI-flagged region weight.
+   - `rankWeakTiles()` ranks tiles by `1 - alignmentQuality(tile)` scaled by the
+     cell importance map and any AI-flagged region weight — the same objective
+     function used for acceptance and reporting.
    - Up to ~12% of tiles (bounded by `MIN_REVIEW_TILES` and `MAX_REVIEW_TILES`)
      are queued for review; locked tiles are skipped.
 4. **Candidate contact sheets** — for each weak tile, `buildContactSheet()` draws
@@ -462,12 +463,37 @@ unchanged.
    sends the sheet to NaviGator and asks it to pick the best real fragment, or
    return `"CURRENT"`. Concurrency is capped at 2 requests with exponential
    backoff on transient errors.
-5. **Numerical validation and application** — every recommendation is re-scored
-   with `scoreFeatures()` at the chosen rotation. The application accepts it only
-   if it improves structure or similarity, and only if no key metric drops
-   severely (structure/brightness >0.12, similarity >0.08). Accepted changes are
-   written into the final `Mosaic` with `engine: "ai"` and full `AiAdjustment`
-   provenance.
+
+   The prompt makes "no change" a first-class answer: the model is told the current
+   fragment was chosen by a numerical matcher, may already be optimal, and that a
+   large share of regions need no change. It must also report
+   `differenceFromCurrent` (`none` | `minor` | `clear` | `strong`) plus the
+   `targetFeatures` it actually read. Only `clear` and `strong` recommendations
+   reach validation; `none`/`minor` are counted and discarded. Self-reported
+   `confidence` is displayed but never used as a quality measure.
+5. **Numerical validation and application** — the engine evaluates the chosen
+   photograph at every permitted rotation (the model never chooses rotation) and
+   keeps the rotation with the highest composite quality. A change is applied only
+   when the composite delta clears `MIN_REFINEMENT_DELTA` (0.012):
+
+   ```ts
+   alignmentQuality(tile) =
+     structureScore  * 0.45 +
+     similarityScore * 0.35 +
+     brightnessScore * 0.15 +
+     continuityScore * 0.05;
+   ```
+
+   `src/lib/cosmos/quality.ts` owns this formula and it is the only acceptance
+   criterion — a structural gain can no longer buy a brightness or similarity loss
+   the way the old `structureImproved || similarityImproved` rule allowed. The same
+   number is reported as "Alignment quality" for the whole mosaic and for AI-changed
+   tiles, so the accepted metric and the displayed metric are identical.
+
+   Each run also computes an internal control: the same weak regions refined by
+   randomly chosen valid alternatives under identical validation. Its changed count,
+   structure delta and composite delta appear under **AI Diagnostics**, so NaviGator's
+   contribution can be compared against non-AI selection.
 
 ### 6.3 Files and responsibilities
 
@@ -476,6 +502,7 @@ unchanged.
 | `src/lib/cosmos/navigator.ts` | API key/model storage in `localStorage`, model discovery (`listModels`, `resolveModel`), `visionJson()` multimodal requests, `runQueue()` with retries/backoff, typed `NavigatorError` kinds. |
 | `src/lib/cosmos/ai-engine.ts` | `AIAnalysisEngine` implementing `MosaicAnalysisEngine`; orchestrates the 5-phase pipeline; emits `AiProgress` and `AiAlignmentStats`. |
 | `src/lib/cosmos/ai-analysis.ts` | `renderTargetAnalysisImage()`, `renderMosaicAnalysisImage()`, `buildContactSheet()`, `analyzeGlobalAlignment()`, `chooseCandidate()`; Zod schemas for structured JSON responses. |
+| `src/lib/cosmos/quality.ts` | `alignmentQuality()`, `averageQuality()`, `continuityFor()`, `buildContinuity()`, `MIN_REFINEMENT_DELTA` — the single alignment objective shared by ranking, validation and reporting. |
 | `src/lib/cosmos/registration.ts` | `targetCellImportance()`, `neighborDisagreement()`, `rankWeakTiles()` — pure deterministic maths with no network calls. |
 | `src/routes/api/navigator.$.ts` | Same-origin proxy to `https://api.ai.it.ufl.edu/v1`; forwards method, body, and `Authorization` header; required because the upstream lacks CORS. |
 

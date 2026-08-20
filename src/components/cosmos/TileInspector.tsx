@@ -113,7 +113,10 @@ export function TileInspector() {
             </span>
           )}
         </div>
-        <button onClick={() => selectTile(null)} className="text-muted-foreground hover:text-foreground">
+        <button
+          onClick={() => selectTile(null)}
+          className="text-muted-foreground hover:text-foreground"
+        >
           <X className="size-3.5" />
         </button>
       </div>
@@ -154,10 +157,31 @@ export function TileInspector() {
                   tile.aiAdjustment.previousRotation !== tile.rotation
                     ? ` · rotation ${tile.aiAdjustment.previousRotation}° → ${tile.rotation}°`
                     : ""}
+                  {tile.aiAdjustment.difference
+                    ? ` · model: ${tile.aiAdjustment.difference} gain`
+                    : ""}
                   {tile.aiAdjustment.confidence != null
-                    ? ` · confidence ${tile.aiAdjustment.confidence.toFixed(2)}`
+                    ? ` · self-reported confidence ${tile.aiAdjustment.confidence.toFixed(2)}`
                     : ""}
                 </p>
+                {tile.aiAdjustment.qualityBefore != null &&
+                  tile.aiAdjustment.qualityAfter != null && (
+                    <p className="data-mono text-foreground">
+                      alignment quality {tile.aiAdjustment.qualityBefore.toFixed(3)} →{" "}
+                      {tile.aiAdjustment.qualityAfter.toFixed(3)}{" "}
+                      <span className="text-primary">
+                        +
+                        {(tile.aiAdjustment.qualityAfter - tile.aiAdjustment.qualityBefore).toFixed(
+                          3,
+                        )}
+                      </span>
+                    </p>
+                  )}
+                {tile.aiAdjustment.targetFeatures?.length ? (
+                  <p className="data-mono text-muted-foreground">
+                    read: {tile.aiAdjustment.targetFeatures.join(" · ")}
+                  </p>
+                ) : null}
                 {tile.aiAdjustment.previousSimilarityScore != null && (
                   <p className="data-mono text-muted-foreground">
                     match {tile.aiAdjustment.previousSimilarityScore.toFixed(3)} →{" "}
@@ -252,4 +276,3 @@ export function TileInspector() {
     </div>
   );
 }
-

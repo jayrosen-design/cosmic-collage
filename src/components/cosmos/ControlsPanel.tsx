@@ -67,6 +67,22 @@ function Row({
   );
 }
 
+function QualityDelta({ title, before, after }: { title: string; before: number; after: number }) {
+  const d = after - before;
+  return (
+    <div className="flex items-baseline justify-between gap-2 rounded-sm border border-border bg-background/40 px-2 py-1">
+      <span className="label-xs">{title}</span>
+      <span className="data-mono text-foreground">
+        {before.toFixed(3)} → {after.toFixed(3)}{" "}
+        <span className={d >= 0 ? "text-primary" : "text-destructive"}>
+          {d >= 0 ? "+" : ""}
+          {d.toFixed(3)}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function ScoreDelta({
   title,
   before,
@@ -286,7 +302,9 @@ export function ControlsPanel() {
                 max={120}
                 value={settings.columns}
                 onChange={(e) =>
-                  patchSettings({ columns: Math.max(4, Math.min(120, Number(e.target.value) || 4)) })
+                  patchSettings({
+                    columns: Math.max(4, Math.min(120, Number(e.target.value) || 4)),
+                  })
                 }
                 className="h-8 bg-background font-mono text-xs"
               />
@@ -474,7 +492,11 @@ export function ControlsPanel() {
               title={settings.seedLocked ? "Seed locked" : "Lock seed"}
               onClick={() => patchSettings({ seedLocked: !settings.seedLocked })}
             >
-              {settings.seedLocked ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
+              {settings.seedLocked ? (
+                <Lock className="size-3.5" />
+              ) : (
+                <LockOpen className="size-3.5" />
+              )}
             </Button>
           </div>
         </div>
@@ -490,7 +512,10 @@ export function ControlsPanel() {
               onValueChange={([v]) => patchSettings({ diversity: v ?? 0 })}
             />
           </Row>
-          <Row label="Maximum Tiles Per Source" value={`${Math.round(settings.maxTilesPerSource * 100)}%`}>
+          <Row
+            label="Maximum Tiles Per Source"
+            value={`${Math.round(settings.maxTilesPerSource * 100)}%`}
+          >
             <Slider
               value={[settings.maxTilesPerSource]}
               min={0.05}
@@ -579,7 +604,24 @@ export function ControlsPanel() {
               <li>{aiStats.regionsFlagged} AI regions flagged</li>
             </ul>
 
-            <ScoreDelta title="Whole mosaic" before={aiStats.before} after={aiStats.after} digits={3} />
+            <QualityDelta
+              title="Alignment quality — whole mosaic"
+              before={aiStats.qualityBefore}
+              after={aiStats.qualityAfter}
+            />
+            <ScoreDelta
+              title="Whole mosaic"
+              before={aiStats.before}
+              after={aiStats.after}
+              digits={3}
+            />
+            {aiStats.changedCount > 0 && (
+              <QualityDelta
+                title={`Alignment quality — AI-changed tiles (${aiStats.changedCount})`}
+                before={aiStats.changedQualityBefore}
+                after={aiStats.changedQualityAfter}
+              />
+            )}
             {aiStats.changedCount > 0 ? (
               <ScoreDelta
                 title={`AI-changed tiles (${aiStats.changedCount})`}
@@ -604,17 +646,41 @@ export function ControlsPanel() {
               <dl className="space-y-0.5">
                 {[
                   ["Model", aiStats.diagnostics.model],
-                  ["Global analysis received", aiStats.diagnostics.globalAnalysisReceived ? "Yes" : "No"],
+                  [
+                    "Global analysis received",
+                    aiStats.diagnostics.globalAnalysisReceived ? "Yes" : "No",
+                  ],
                   ["Global regions flagged", String(aiStats.diagnostics.globalRegionsFlagged)],
                   ["Regions queued", String(aiStats.diagnostics.regionsQueued)],
                   ["Successful responses", String(aiStats.diagnostics.successfulResponses)],
                   ["CURRENT responses", String(aiStats.diagnostics.currentResponses)],
-                  ["Alternative recommendations", String(aiStats.diagnostics.alternativeRecommendations)],
-                  ["Accepted after validation", String(aiStats.diagnostics.acceptedAfterValidation)],
-                  ["Rejected after validation", String(aiStats.diagnostics.rejectedAfterValidation)],
+                  [
+                    "Alternative recommendations",
+                    String(aiStats.diagnostics.alternativeRecommendations),
+                  ],
+                  [
+                    "Ignored (none / minor gain)",
+                    String(aiStats.diagnostics.minorDifferenceIgnored),
+                  ],
+                  [
+                    "Reported difference",
+                    `none ${aiStats.diagnostics.differenceCounts.none} · minor ${aiStats.diagnostics.differenceCounts.minor} · clear ${aiStats.diagnostics.differenceCounts.clear} · strong ${aiStats.diagnostics.differenceCounts.strong}`,
+                  ],
+                  [
+                    "Accepted after validation",
+                    String(aiStats.diagnostics.acceptedAfterValidation),
+                  ],
+                  [
+                    "Rejected after validation",
+                    String(aiStats.diagnostics.rejectedAfterValidation),
+                  ],
                   ["Average confidence", aiStats.diagnostics.averageConfidence.toFixed(2)],
                   [
-                    "Avg changed-tile improvement",
+                    "Control: random selection",
+                    `${aiStats.diagnostics.control.changed} tiles · composite ${aiStats.diagnostics.control.compositeDelta >= 0 ? "+" : ""}${aiStats.diagnostics.control.compositeDelta.toFixed(4)} · structure ${aiStats.diagnostics.control.structureDelta >= 0 ? "+" : ""}${aiStats.diagnostics.control.structureDelta.toFixed(4)}`,
+                  ],
+                  [
+                    "Avg changed-tile composite gain",
                     `${aiStats.diagnostics.averageChangedImprovement >= 0 ? "+" : ""}${aiStats.diagnostics.averageChangedImprovement.toFixed(3)}`,
                   ],
                 ].map(([label, value]) => (
@@ -710,9 +776,9 @@ export function ControlsPanel() {
               Before AI Alignment runs
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              AI Alignment sends reduced-resolution copies of the target and selected collage regions
-              to NaviGator Toolkit for analysis. Original full-resolution source photographs are not
-              sent unless required by a future feature.
+              AI Alignment sends reduced-resolution copies of the target and selected collage
+              regions to NaviGator Toolkit for analysis. Original full-resolution source photographs
+              are not sent unless required by a future feature.
             </DialogDescription>
           </DialogHeader>
           <p className="data-mono text-muted-foreground">

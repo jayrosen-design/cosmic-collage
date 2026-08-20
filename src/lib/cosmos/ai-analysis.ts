@@ -11,13 +11,7 @@ import { canvasRectToTarget, cellRect, drawVirtualTargetCanvas } from "./composi
 import { loadImage } from "./engine";
 import { renderMosaic } from "./render";
 import { visionJson } from "./navigator";
-import type {
-  CandidateCrop,
-  Mosaic,
-  MosaicTile,
-  SourceImage,
-  VirtualTargetLayout,
-} from "./types";
+import type { CandidateCrop, Mosaic, MosaicTile, SourceImage, VirtualTargetLayout } from "./types";
 
 const GLOBAL_MAX_DIM = 1280;
 const SHEET_MAX_DIM = 1280;
@@ -60,7 +54,11 @@ export async function renderMosaicAnalysisImage(
     6,
     Math.floor(GLOBAL_MAX_DIM / Math.max(mosaic.settings.columns, mosaic.settings.rows)),
   );
-  const { width, height } = await renderMosaic(full, mosaic, sources, { tilePx, gap: 0, border: 0 });
+  const { width, height } = await renderMosaic(full, mosaic, sources, {
+    tilePx,
+    gap: 0,
+    border: 0,
+  });
   const canvas = fittedCanvas(width, height, GLOBAL_MAX_DIM);
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(full, 0, 0, canvas.width, canvas.height);
@@ -139,24 +137,30 @@ export async function analyzeGlobalAlignment(
   mosaicImage: string,
   signal?: AbortSignal | null,
 ): Promise<GlobalAnalysis> {
-  return visionJson({
-    system: GLOBAL_SYSTEM,
-    prompt: GLOBAL_PROMPT,
-    images: [targetImage, mosaicImage],
-    maxTokens: 1200,
-    signal: signal ?? null,
-  }, (raw) => globalAnalysisSchema.parse(raw));
+  return visionJson(
+    {
+      system: GLOBAL_SYSTEM,
+      prompt: GLOBAL_PROMPT,
+      images: [targetImage, mosaicImage],
+      maxTokens: 1200,
+      signal: signal ?? null,
+    },
+    (raw) => globalAnalysisSchema.parse(raw),
+  );
 }
 
 /** Weight multiplier for a tile that falls inside an AI-flagged region. */
-export function regionWeightFactory(analysis: GlobalAnalysis | null, columns: number, rows: number) {
+export function regionWeightFactory(
+  analysis: GlobalAnalysis | null,
+  columns: number,
+  rows: number,
+) {
   if (!analysis || analysis.regions.length === 0) return () => 1;
   const regions = analysis.regions.map((r) => ({
     ...r,
     weight:
       1 +
-      (r.importance ?? 0.7) *
-        (r.priority === "high" ? 1.1 : r.priority === "medium" ? 0.7 : 0.4),
+      (r.importance ?? 0.7) * (r.priority === "high" ? 1.1 : r.priority === "medium" ? 0.7 : 0.4),
   }));
   return (tile: MosaicTile) => {
     const cx = (tile.column + 0.5) / columns;
@@ -183,7 +187,13 @@ export interface SheetCandidate {
   rotation: 0 | 90 | 180 | 270;
 }
 
-function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number) {
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  size: number,
+) {
   ctx.fillStyle = "rgba(8,10,14,0.78)";
   ctx.fillRect(x, y, size, Math.round(size * 0.2));
   ctx.fillStyle = "#e6edf6";
@@ -273,13 +283,7 @@ export async function buildContactSheet(
       0,
       cell * 2,
     );
-    drawLabel(
-      ctx,
-      `TARGET ${tile.id} (with surroundings)`,
-      0,
-      0,
-      cell * 2,
-    );
+    drawLabel(ctx, `TARGET ${tile.id} (with surroundings)`, 0, 0, cell * 2);
   } else {
     // composition padding: no target pixels here — show the derived background tone
     const bg = layout.backgroundFeatures;
@@ -329,7 +333,11 @@ export async function buildContactSheet(
 
 export const candidateChoiceSchema = z.object({
   candidateId: z.string().min(1),
-  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
+  /** how much better the chosen alternative is than the CURRENT fragment */
+  differenceFromCurrent: z.enum(["none", "minor", "clear", "strong"]).default("none"),
+  /** structural features the model read in the target region */
+  targetFeatures: z.array(z.string().max(80)).max(6).default([]),
+  /** self-reported, displayed only — the engine's own maths decides acceptance */
   confidence: z.number().min(0).max(1).optional(),
   reason: z.string().max(400).optional(),
 });
@@ -338,7 +346,8 @@ export type CandidateChoice = z.infer<typeof candidateChoiceSchema>;
 
 const SHEET_SYSTEM =
   "You are an astronomical image-analysis assistant selecting between existing photographic fragments. " +
-  "You never generate, request, paint or modify imagery. You reply with strict JSON only.";
+  "You never generate, request, paint or modify imagery. Keeping the current fragment is a correct, " +
+  "expected and frequent answer. You reply with strict JSON only.";
 
 export async function chooseCandidate(
   sheet: string,
@@ -351,9 +360,13 @@ Top-left: the TARGET region of the real observation, including its surroundings.
 Top-right: the CURRENT photographic fragment placed in that region.
 Bottom two rows: alternative fragments cropped from other real photographs, labelled ${letters.join(", ")}.
 
-Choose the candidate that best preserves the astronomical structure of the target region.
+The CURRENT fragment was chosen by a numerical matcher and may already be optimal.
+Do not prefer changing the fragment. There is no expectation that a change is needed.
+Answer with candidateId "CURRENT" whenever no alternative offers a clear and meaningful
+improvement in correspondence with the target region. In a typical review, roughly a third
+or more of regions require no change at all.
 
-Consider:
+Only name an alternative when it is meaningfully better than CURRENT, judged on:
 - structure
 - luminance
 - orientation
@@ -361,17 +374,27 @@ Consider:
 - stellar density
 - continuity with neighboring regions
 
-Do not request new imagery. Only choose from the supplied candidates. If the CURRENT fragment is already the best, answer with candidateId "CURRENT".
+Do not request new imagery. Only choose from the supplied candidates.
 
-Do not comment on rotation: rotation is decided numerically by the application after your choice.
+Report differenceFromCurrent honestly:
+- "none"   the alternative is not better than CURRENT (then answer CURRENT)
+- "minor"  a slight, arguable difference
+- "clear"  clearly better correspondence
+- "strong" substantially better correspondence
 
-Return JSON only: {"candidateId":"D","confidence":0.9,"reason":"short reason"}`;
+Also list the structural features you actually read in the target region.
 
-  return visionJson({
-    system: SHEET_SYSTEM,
-    prompt,
-    images: [sheet],
-    maxTokens: 300,
-    signal: signal ?? null,
-  }, (raw) => candidateChoiceSchema.parse(raw));
+Return JSON only, exactly this shape:
+{"candidateId":"CURRENT","differenceFromCurrent":"none","targetFeatures":["curved luminous arm","dark lower boundary"],"confidence":0.6,"reason":"short reason"}`;
+
+  return visionJson(
+    {
+      system: SHEET_SYSTEM,
+      prompt,
+      images: [sheet],
+      maxTokens: 300,
+      signal: signal ?? null,
+    },
+    (raw) => candidateChoiceSchema.parse(raw),
+  );
 }
