@@ -1,0 +1,67 @@
+{
+  "project": "Andromeda Demo",
+  "object": "M31 - Andromeda Galaxy",
+  "description": "Reconstruct Andromeda from multiple observations of Andromeda.",
+  "images": [
+    {
+      "id": "PIA08787",
+      "nasaId": "PIA08787",
+      "file": "PIA08787_GALEX_SPITZER_COMPOSITE.jpg",
+      "url": "/__l5e/assets-v1/1b7f6928-0c68-4474-88f1-8d88b7be3e36/PIA08787_GALEX_SPITZER_COMPOSITE.jpg",
+      "title": "Amazing Andromeda Galaxy",
+      "mission": "GALEX / Spitzer",
+      "wavelength": "composite",
+      "type": "target",
+      "tags": ["galaxy", "dust structure", "galaxy core"],
+      "credit": "NASA/JPL-Caltech"
+    },
+    {
+      "id": "PIA15416",
+      "nasaId": "PIA15416",
+      "file": "PIA15416_GALEX_UV.jpg",
+      "url": "/__l5e/assets-v1/c14d25a6-bf9a-41c2-8a94-d70c753c91f6/PIA15416_GALEX_UV.jpg",
+      "title": "Andromeda in Ultraviolet",
+      "mission": "GALEX",
+      "wavelength": "uv",
+      "type": "source",
+      "tags": ["galaxy", "star field", "emission region"],
+      "credit": "NASA/JPL-Caltech"
+    },
+    {
+      "id": "PIA12832",
+      "nasaId": "PIA12832",
+      "file": "PIA12832_WISE_IR.jpg",
+      "url": "/__l5e/assets-v1/04f8d8ea-aeef-4757-bbd8-9986c4b12c3e/PIA12832_WISE_IR.jpg",
+      "title": "Andromeda in Infrared",
+      "mission": "WISE",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["galaxy", "dust structure", "diffuse structure"],
+      "credit": "NASA/JPL-Caltech/UCLA"
+    },
+    {
+      "id": "PIA26276",
+      "nasaId": "PIA26276",
+      "file": "PIA26276_SPITZER_IR.jpg",
+      "url": "/__l5e/assets-v1/4c7d4115-53b5-4455-945a-084235ade8d9/PIA26276_SPITZER_IR.jpg",
+      "title": "Infrared Andromeda Panorama",
+      "mission": "Spitzer",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["dust structure", "diffuse structure", "dark sky"],
+      "credit": "NASA/JPL-Caltech"
+    },
+    {
+      "id": "PIA04921",
+      "nasaId": "PIA04921",
+      "file": "PIA04921_GALEX_UV.jpg",
+      "url": "/__l5e/assets-v1/e0934c91-2928-4e37-a6f8-03cdd3f28e0b/PIA04921_GALEX_UV.jpg",
+      "title": "Ultraviolet Andromeda Mosaic",
+      "mission": "GALEX",
+      "wavelength": "uv",
+      "type": "source",
+      "tags": ["star field", "dense stellar field", "galaxy"],
+      "credit": "NASA/JPL-Caltech"
+    }
+  ]
+}
