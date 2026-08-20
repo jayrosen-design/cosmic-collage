@@ -38,9 +38,10 @@ function Row({
 }
 
 export function ControlsPanel() {
-  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic, images } =
+  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic, images, project } =
     useStudio();
   const [exporting, setExporting] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const downloadPng = async () => {
     if (!mosaic) return;
@@ -52,6 +53,29 @@ export function ControlsPanel() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const saveToGallery = async () => {
+    if (!mosaic) return;
+    const canvas = document.createElement("canvas");
+    await renderMosaic(canvas, mosaic, images, { tilePx: 26 });
+    saveGalleryEntry({
+      id: `collage-${Date.now()}`,
+      name: `${project?.object ?? "Collage"} · ${settings.columns}×${settings.rows}`,
+      object: project?.object ?? "Unknown object",
+      createdAt: Date.now(),
+      columns: settings.columns,
+      rows: settings.rows,
+      tileCount: mosaic.tiles.length,
+      sourceCount: new Set(mosaic.tiles.map((t) => t.sourceImageId)).size,
+      abstraction: settings.abstraction,
+      seed: settings.seed,
+      thumbnail: canvas.toDataURL("image/jpeg", 0.72),
+      settings,
+    });
+    notifyGalleryChanged();
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
   };
 
   const abstractionLabel =
