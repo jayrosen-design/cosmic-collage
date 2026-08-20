@@ -425,8 +425,8 @@ unchanged.
   blend, inpaint, or hallucinate pixels.
 - **Provenance is preserved.** Every accepted change writes an `AiAdjustment`
   record into the tile, including the previous source, rotation, scores, the
-  model's reason, and its confidence. Rejected changes still record `reviewed:
-true`.
+  model's reason, and its confidence. Rejected changes still record
+  `reviewed: true`.
 - **Privacy by default.** The NaviGator API key is stored only in the browser's
   `localStorage`; it is never written into mosaics, gallery entries, exported
   PNGs, CSV manifests, URLs, logs, or error messages.
