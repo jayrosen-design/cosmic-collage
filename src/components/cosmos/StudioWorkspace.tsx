@@ -40,16 +40,21 @@ export function StudioWorkspace() {
           <div className="min-h-0 flex-1">
             <MosaicCanvas view={view} />
           </div>
-        </section>
-
-        <aside className="grid min-h-0 grid-rows-2 border-l border-border bg-sidebar">
-          <div className="min-h-0 overflow-hidden border-b border-border">
-            <ControlsPanel />
-          </div>
-          <div key={selectedTileId ?? "none"} className="min-h-0 overflow-hidden">
+          <div
+            key={selectedTileId ?? "none"}
+            className={cn(
+              "shrink-0 overflow-hidden border-t border-border bg-sidebar",
+              selectedTileId ? "h-[230px]" : "h-11",
+            )}
+          >
             <TileInspector />
           </div>
+        </section>
+
+        <aside className="min-h-0 overflow-hidden border-l border-border bg-sidebar">
+          <ControlsPanel />
         </aside>
+
       </div>
     </StudioShell>
   );
