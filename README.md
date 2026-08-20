@@ -517,11 +517,13 @@ true`.
 `StudioProvider` is mounted once in `__root.tsx` and exposes `useStudio()`:
 
 - Data: `project`, `images`, `target`, `sourcePool`, `settings`, `mosaic`,
-  `ready`, `generating`, `progress`, `selectedTileId`, `engineMode`.
+  `ready`, `generating`, `progress`, `selectedTileId`, `engineMode`, plus
+  AI Alignment state: `aiGenerating`, `aiProgress`, `aiBaseline`, `aiStats`,
+  `aiError`, `navigatorConnected`.
 - Actions: `openDemo`, `patchSettings`, `setTarget`, `toggleImage`,
   `updateImage`, `removeImage`, `addUploads`, `generate`, `newSeed`,
   `selectTile`, `imageById`, `suggest`, `replaceTile`, `swapTiles`,
-  `rotateTile`, `toggleLock`.
+  `rotateTile`, `toggleLock`, `generateWithAI`, `cancelAIGeneration`.
 
 `openDemo(slug = "andromeda")` fetches `/demo/<slug>/manifest.json`, maps each
 entry to a `SourceImage`, picks the `type: "target"` entry as the target, resets
