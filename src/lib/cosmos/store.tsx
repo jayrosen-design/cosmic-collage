@@ -92,7 +92,8 @@ interface StudioValue {
   progress: EngineProgress | null;
   selectedTileId: string | null;
   engineMode: "visual" | "ai";
-  openDemo: () => Promise<void>;
+  activeDemo: string | null;
+  openDemo: (slug?: string) => Promise<void>;
   patchSettings: (p: Partial<MosaicSettings>) => void;
   setTarget: (id: string) => void;
   toggleImage: (id: string, enabled: boolean) => void;
