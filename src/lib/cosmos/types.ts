@@ -112,8 +112,16 @@ export interface AiAdjustment {
   previousSimilarityScore?: number;
   previousStructureScore?: number;
   previousBrightnessScore?: number;
+  previousContinuityScore?: number;
+  /** composite alignment quality before/after the change (same objective function) */
+  qualityBefore?: number;
+  qualityAfter?: number;
   reason?: string;
+  /** model self-report — displayed, never authoritative */
   confidence?: number;
+  /** model's own judgement of how much better the alternative is */
+  difference?: "none" | "minor" | "clear" | "strong";
+  targetFeatures?: string[];
 }
 
 export interface MosaicTile {
@@ -132,6 +140,8 @@ export interface MosaicTile {
   brightnessScore: number;
   colorScore: number;
   structureScore: number;
+  /** neighbour continuity, populated by the alignment objective when computed */
+  continuityScore?: number;
   locked: boolean;
   /** Fraction of this cell covered by the real target photograph (1 = fully inside). */
   targetCoverage?: number;

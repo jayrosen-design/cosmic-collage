@@ -4,6 +4,7 @@
  */
 
 import { cellImportance, describeVirtualTargetCell } from "./composition";
+import { alignmentQuality, buildContinuity } from "./quality";
 import { type AnalysisBitmap } from "./engine";
 import type { ImageFeatures, Mosaic, MosaicTile, VirtualTargetLayout } from "./types";
 
@@ -110,19 +111,19 @@ export function rankWeakTiles(
   limit: number,
 ): WeakTile[] {
   const { columns } = mosaic.settings;
-  const disagreement = neighborDisagreement(mosaic, cells);
+  // Weakness is the inverse of the one alignment objective used everywhere else.
+  const continuity = buildContinuity(mosaic, cells);
 
   return mosaic.tiles
     .filter((t) => !t.locked && t.alternatives.length > 0)
     .map((tile) => {
       const cell = cellAt(cells, columns, tile.row, tile.column);
       const importance = cell?.importance ?? 0.5;
-      const structural = 1 - tile.structureScore;
-      const brightness = 1 - tile.brightnessScore;
-      const base =
-        (1 - tile.similarityScore) * 0.55 + structural * 0.28 + brightness * 0.17;
-      const weakness =
-        (base + (disagreement.get(tile.id) ?? 0) * 0.25) * importance * regionWeight(tile);
+      const quality = alignmentQuality({
+        ...tile,
+        continuityScore: continuity.get(tile.id) ?? 0.5,
+      });
+      const weakness = (1 - quality) * importance * regionWeight(tile);
       return { tile, weakness, importance };
     })
     .sort((a, b) => b.weakness - a.weakness)
