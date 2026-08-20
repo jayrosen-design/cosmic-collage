@@ -1,5 +1,17 @@
 # Cosmic Collage
 
+<p align="center">
+  <img src="https://id-preview--6a0f5484-0bd8-45e3-9ee9-fe784962cad1.lovable.app/__l5e/assets-v1/735fb127-c150-4ca5-84b0-5556b8d6046f/studio-screenshot.png" alt="Cosmic Collage Studio" width="100%" />
+  <br />
+  <em>Studio — reconstructing Andromeda from fragments of real NASA observations</em>
+</p>
+
+<p align="center">
+  <img src="https://id-preview--6a0f5484-0bd8-45e3-9ee9-fe784962cad1.lovable.app/__l5e/assets-v1/2ec08132-a6ad-4f98-acd1-bf869cff8449/physical-screenshot.png" alt="Cosmic Collage Assembly Map" width="100%" />
+  <br />
+  <em>Physical Assembly Map — tile labels, source provenance, and print-ready exports</em>
+</p>
+
 Cosmic Collage is a browser-based *computational instrument* for reconstructing an
 astronomical image out of fragments of other **real** astronomical photographs.
 
