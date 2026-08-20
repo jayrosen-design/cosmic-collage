@@ -9,7 +9,9 @@
  */
 
 import { describeRegion, type AnalysisBitmap } from "./engine";
-import type { ImageFeatures, MosaicSettings } from "./types";
+import type { ImageFeatures, MosaicSettings, VirtualTargetLayout } from "./types";
+
+export type { VirtualTargetLayout };
 
 export type CanvasAspectMode = "auto" | "3:2" | "4:3" | "16:9" | "1:1" | "custom";
 
