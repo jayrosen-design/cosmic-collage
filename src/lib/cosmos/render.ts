@@ -19,10 +19,16 @@ export async function preloadImages(images: SourceImage[]) {
   return map;
 }
 
+/**
+ * Tile geometry from the shared composition. In "target" mode the mosaic frame
+ * matches the Virtual Target Canvas aspect, so tiles become uniformly rectangular
+ * (never stretched per-tile); in "square" mode tiles stay square.
+ */
 function tileGeometry(mosaic: Mosaic, tilePx: number) {
-  const { columns, rows, aspectMode } = mosaic.settings;
+  const { columns, rows } = mosaic.settings;
+  const aspect = tileAspectFor(mosaic.settings, mosaic.layout); // tileW / tileH
   const tileW = tilePx;
-  const tileH = aspectMode === "square" ? tilePx : tilePx;
+  const tileH = Math.max(4, Math.round(tilePx / aspect));
   return { tileW, tileH, width: columns * tileW, height: rows * tileH };
 }
 
