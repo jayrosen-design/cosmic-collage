@@ -45,19 +45,6 @@ export const MAX_TARGET_SCALE = 1;
 
 const clamp = (v: number, lo = 0, hi = 1) => (v < lo ? lo : v > hi ? hi : v);
 
-/** Shared normalised composition layout. All coordinates are 0..1 of the canvas. */
-export interface VirtualTargetLayout {
-  /** canvas width / height */
-  canvasAspect: number;
-  targetX: number;
-  targetY: number;
-  targetWidth: number;
-  targetHeight: number;
-  /** analytical descriptor used only for matching padding cells */
-  backgroundFeatures: ImageFeatures;
-  /** robust low-percentile luminance of the target's sky */
-  backgroundLowLuminance: number;
-}
 
 /* ------------------------------------------------------------------ */
 /* background descriptor                                               */
