@@ -67,6 +67,22 @@ function Row({
   );
 }
 
+function QualityDelta({ title, before, after }: { title: string; before: number; after: number }) {
+  const d = after - before;
+  return (
+    <div className="flex items-baseline justify-between gap-2 rounded-sm border border-border bg-background/40 px-2 py-1">
+      <span className="label-xs">{title}</span>
+      <span className="data-mono text-foreground">
+        {before.toFixed(3)} → {after.toFixed(3)}{" "}
+        <span className={d >= 0 ? "text-primary" : "text-destructive"}>
+          {d >= 0 ? "+" : ""}
+          {d.toFixed(3)}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function ScoreDelta({
   title,
   before,
@@ -579,7 +595,19 @@ export function ControlsPanel() {
               <li>{aiStats.regionsFlagged} AI regions flagged</li>
             </ul>
 
+            <QualityDelta
+              title="Alignment quality — whole mosaic"
+              before={aiStats.qualityBefore}
+              after={aiStats.qualityAfter}
+            />
             <ScoreDelta title="Whole mosaic" before={aiStats.before} after={aiStats.after} digits={3} />
+            {aiStats.changedCount > 0 && (
+              <QualityDelta
+                title={`Alignment quality — AI-changed tiles (${aiStats.changedCount})`}
+                before={aiStats.changedQualityBefore}
+                after={aiStats.changedQualityAfter}
+              />
+            )}
             {aiStats.changedCount > 0 ? (
               <ScoreDelta
                 title={`AI-changed tiles (${aiStats.changedCount})`}
@@ -610,11 +638,23 @@ export function ControlsPanel() {
                   ["Successful responses", String(aiStats.diagnostics.successfulResponses)],
                   ["CURRENT responses", String(aiStats.diagnostics.currentResponses)],
                   ["Alternative recommendations", String(aiStats.diagnostics.alternativeRecommendations)],
+                  [
+                    "Ignored (none / minor gain)",
+                    String(aiStats.diagnostics.minorDifferenceIgnored),
+                  ],
+                  [
+                    "Reported difference",
+                    `none ${aiStats.diagnostics.differenceCounts.none} · minor ${aiStats.diagnostics.differenceCounts.minor} · clear ${aiStats.diagnostics.differenceCounts.clear} · strong ${aiStats.diagnostics.differenceCounts.strong}`,
+                  ],
                   ["Accepted after validation", String(aiStats.diagnostics.acceptedAfterValidation)],
                   ["Rejected after validation", String(aiStats.diagnostics.rejectedAfterValidation)],
                   ["Average confidence", aiStats.diagnostics.averageConfidence.toFixed(2)],
                   [
-                    "Avg changed-tile improvement",
+                    "Control: random selection",
+                    `${aiStats.diagnostics.control.changed} tiles · composite ${aiStats.diagnostics.control.compositeDelta >= 0 ? "+" : ""}${aiStats.diagnostics.control.compositeDelta.toFixed(4)} · structure ${aiStats.diagnostics.control.structureDelta >= 0 ? "+" : ""}${aiStats.diagnostics.control.structureDelta.toFixed(4)}`,
+                  ],
+                  [
+                    "Avg changed-tile composite gain",
                     `${aiStats.diagnostics.averageChangedImprovement >= 0 ? "+" : ""}${aiStats.diagnostics.averageChangedImprovement.toFixed(3)}`,
                   ],
                 ].map(([label, value]) => (
