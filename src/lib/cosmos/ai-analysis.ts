@@ -7,10 +7,17 @@
  */
 
 import { z } from "zod";
+import { canvasRectToTarget, cellRect, drawVirtualTargetCanvas } from "./composition";
 import { loadImage } from "./engine";
 import { renderMosaic } from "./render";
 import { visionJson } from "./navigator";
-import type { CandidateCrop, Mosaic, MosaicTile, SourceImage } from "./types";
+import type {
+  CandidateCrop,
+  Mosaic,
+  MosaicTile,
+  SourceImage,
+  VirtualTargetLayout,
+} from "./types";
 
 const GLOBAL_MAX_DIM = 1280;
 const SHEET_MAX_DIM = 1280;
@@ -28,12 +35,18 @@ function fittedCanvas(w: number, h: number, maxDim: number) {
   return canvas;
 }
 
-/** Reduced-resolution copy of the target observation. Not persisted. */
-export async function renderTargetAnalysisImage(target: SourceImage): Promise<string> {
+/**
+ * Reduced-resolution copy of the Virtual Target Canvas: the real target photograph
+ * at its exact composition position and scale, with padding shown as the derived
+ * astronomical background tone. Not persisted, never used as collage pixels.
+ */
+export async function renderTargetAnalysisImage(
+  target: SourceImage,
+  layout: VirtualTargetLayout,
+): Promise<string> {
   const img = await loadImage(target.url);
-  const canvas = fittedCanvas(img.naturalWidth, img.naturalHeight, GLOBAL_MAX_DIM);
-  const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const canvas = document.createElement("canvas");
+  drawVirtualTargetCanvas(canvas, img, layout, GLOBAL_MAX_DIM);
   return toJpeg(canvas);
 }
 
@@ -223,6 +236,7 @@ export async function buildContactSheet(
   sourceById: (id: string) => SourceImage | undefined,
   columns: number,
   rows: number,
+  layout: VirtualTargetLayout,
 ): Promise<string> {
   const cell = Math.floor(SHEET_MAX_DIM / 4.2);
   const canvas = document.createElement("canvas");
@@ -232,28 +246,48 @@ export async function buildContactSheet(
   ctx.fillStyle = "#0b0d11";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // row 1: TARGET (with context) + CURRENT
+  // row 1: TARGET (with context, mapped through the Virtual Target Canvas) + CURRENT
   const targetImg = await loadImage(target.url);
-  const tw = 1 / columns;
-  const th = 1 / rows;
+  const base = cellRect(tile.row, tile.column, rows, columns);
   const ctxPad = 0.6;
-  const cropX = Math.max(0, Math.min(1 - tw, tile.column * tw - tw * ctxPad));
-  const cropY = Math.max(0, Math.min(1 - th, tile.row * th - th * ctxPad));
-  drawCrop(
-    ctx,
-    targetImg,
-    {
-      x: cropX,
-      y: cropY,
-      w: Math.min(1 - cropX, tw * (1 + ctxPad * 2)),
-      h: Math.min(1 - cropY, th * (1 + ctxPad * 2)),
-    },
-    0,
-    0,
-    0,
-    cell * 2,
-  );
-  drawLabel(ctx, `TARGET ${tile.id} (with surroundings)`, 0, 0, cell * 2);
+  // expand the cell in *canvas* space, then map it into the real target image
+  const expanded = {
+    x: base.x - base.w * ctxPad,
+    y: base.y - base.h * ctxPad,
+    w: base.w * (1 + ctxPad * 2),
+    h: base.h * (1 + ctxPad * 2),
+  };
+  const mapped = canvasRectToTarget(layout, expanded);
+  if (mapped) {
+    drawCrop(
+      ctx,
+      targetImg,
+      {
+        x: Math.max(0, mapped.x),
+        y: Math.max(0, mapped.y),
+        w: Math.min(1, mapped.w),
+        h: Math.min(1, mapped.h),
+      },
+      0,
+      0,
+      0,
+      cell * 2,
+    );
+    drawLabel(
+      ctx,
+      `TARGET ${tile.id} (with surroundings)`,
+      0,
+      0,
+      cell * 2,
+    );
+  } else {
+    // composition padding: no target pixels here — show the derived background tone
+    const bg = layout.backgroundFeatures;
+    const c = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+    ctx.fillStyle = `rgb(${c(bg.r)},${c(bg.g)},${c(bg.b)})`;
+    ctx.fillRect(0, 0, cell * 2, cell * 2);
+    drawLabel(ctx, `TARGET ${tile.id} (composition padding / dark sky)`, 0, 0, cell * 2);
+  }
 
   const currentSource = sourceById(tile.sourceImageId);
   if (currentSource) {
@@ -329,7 +363,9 @@ Consider:
 
 Do not request new imagery. Only choose from the supplied candidates. If the CURRENT fragment is already the best, answer with candidateId "CURRENT".
 
-Return JSON only: {"candidateId":"D","rotation":90,"confidence":0.9,"reason":"short reason"}`;
+Do not comment on rotation: rotation is decided numerically by the application after your choice.
+
+Return JSON only: {"candidateId":"D","confidence":0.9,"reason":"short reason"}`;
 
   return visionJson({
     system: SHEET_SYSTEM,
