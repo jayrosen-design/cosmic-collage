@@ -17,6 +17,16 @@
       "manifest": "/demo/orion/manifest.json",
       "thumbnail": "/__l5e/assets-v1/9fd8ba84-80b8-4b14-b105-4ca091789a79/ORION_HUBBLE_TARGET.jpg",
       "imageCount": 6
+    },
+    {
+      "slug": "pinwheel",
+      "name": "Pinwheel Galaxy Demo",
+      "object": "M101 - Pinwheel Galaxy",
+      "description": "Hubble visible-light target with GALEX UV, WISE and Spitzer infrared, and a four-observatory composite.",
+      "manifest": "/demo/pinwheel/manifest.json",
+      "thumbnail": "/__l5e/assets-v1/9960f2e6-e737-4044-a3b6-9ffd491efb14/PIA15630_MULTI_OBSERVATORY_COMPOSITE.jpg",
+      "imageCount": 5
     }
   ]
 }
+
