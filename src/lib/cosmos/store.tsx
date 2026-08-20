@@ -179,17 +179,21 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       }
       const targetImage = manifest.images.find((m) => m.type === "target") ?? manifest.images[0]!;
       setImages([...loaded, ...listUploads()]);
+      setMosaic(null);
+      setSelectedTileId(null);
+      autoRan.current = false;
       setProject({
-        id: "andromeda-demo",
+        id: `${slug}-demo`,
         name: manifest.project,
         object: manifest.object,
         targetId: targetImage.id,
         createdAt: Date.now(),
       });
+      setActiveDemo(slug);
     } finally {
       setLoadingDemo(false);
     }
-  }, [project, loadingDemo]);
+  }, [project, loadingDemo, activeDemo]);
 
   const patchSettings = useCallback((p: Partial<MosaicSettings>) => {
     setSettings((s) => ({ ...s, ...p }));
