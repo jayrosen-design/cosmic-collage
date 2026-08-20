@@ -1,3 +1,4 @@
+import { tileAspectFor } from "./composition";
 import { loadImage } from "./engine";
 import type { Mosaic, MosaicTile, SourceImage } from "./types";
 
