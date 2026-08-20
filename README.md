@@ -618,7 +618,7 @@ analysis and rendering run off the main thread and remove the current
 
 ---
 
-## 9. Conventions to keep
+## 10. Conventions to keep
 
 - Colours, gradients and shadows come from the semantic tokens in
   `src/styles.css`. Never hardcode `text-white` / `bg-[#…]`.
@@ -632,7 +632,7 @@ analysis and rendering run off the main thread and remove the current
 
 ---
 
-## 10. Local development
+## 11. Local development
 
 ```sh
 npm i
