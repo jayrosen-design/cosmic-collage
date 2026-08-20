@@ -383,6 +383,7 @@ export class BrowserAnalysisEngine implements MosaicAnalysisEngine {
 
     const targetEl = await loadImage(target.url);
     const targetBmp = makeAnalysisBitmap(targetEl, 640);
+    const layout = computeVirtualTargetLayout(settings, targetBmp);
 
     const candidates = this.buildCandidates(analyzed);
     this.candidates = candidates;
@@ -409,96 +410,179 @@ export class BrowserAnalysisEngine implements MosaicAnalysisEngine {
     };
 
     const usage = new Map<string, number>();
-    const maxPerSource = Math.max(1, Math.ceil(total * settings.maxTilesPerSource));
+    /** hard ceiling — a source is only rejected here, never at the soft preference */
+    const hardCap = Math.max(1, Math.ceil(total * settings.maxTilesPerSource));
+    const softShare = Math.max(1, total / analyzed.length);
     const lockedByKey = new Map<string, MosaicTile>();
     for (const t of ctx.lockedTiles ?? []) if (t.locked) lockedByKey.set(`${t.row}:${t.column}`, t);
 
-    const tiles: MosaicTile[] = [];
-    report("Matching target tiles...", 0.34, `${total} target tiles`);
-    await yieldToUI();
-
+    /* ---- describe every composition cell BEFORE assigning any crops ---- */
+    interface Job {
+      row: number;
+      column: number;
+      features: ImageFeatures;
+      coverage: number;
+      importance: number;
+      order: number;
+    }
+    const cells: Array<{ row: number; column: number; features: ImageFeatures; coverage: number }> = [];
+    let maxContrast = 0.0001;
+    let maxEdge = 0.0001;
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        const locked = lockedByKey.get(`${row}:${col}`);
-        if (locked) {
-          tiles.push({ ...locked });
-          usage.set(locked.sourceImageId, (usage.get(locked.sourceImageId) ?? 0) + 1);
-          continue;
-        }
-
-        const cellFeatures = describeRegion(targetBmp, col / columns, row / rows, 1 / columns, 1 / rows);
-
-        const pool: number[] = [];
-        if (sampleSize >= candidates.length) {
-          for (let i = 0; i < candidates.length; i++) pool.push(i);
-        } else {
-          for (let i = 0; i < sampleSize; i++) pool.push(Math.floor(rng() * candidates.length));
-        }
-
-        type Scored = {
-          index: number;
-          rotation: 0 | 90 | 180 | 270;
-          parts: ScoreParts;
-          adjusted: number;
-        };
-        const scored: Scored[] = [];
-        for (const idx of pool) {
-          const cand = candidates[idx]!;
-          const used = usage.get(cand.sourceId) ?? 0;
-          if (used >= maxPerSource && analyzed.length > 1) continue;
-          const reuse = (used / Math.max(1, total / analyzed.length)) * 0.55 * settings.diversity;
-          for (const rot of rotations) {
-            const feats = this.rotatedFeatures[idx]?.[ROTATIONS.indexOf(rot)] ?? cand.features;
-            const parts = scoreFeatures(cellFeatures, feats, weights);
-            const adjusted =
-              parts.similarity - reuse + mixBonus(cand.sourceId) + (rng() - 0.5) * 0.5 * effRandom;
-            scored.push({ index: idx, rotation: rot, parts, adjusted });
-          }
-        }
-        if (scored.length === 0) {
-          const cand = candidates[Math.floor(rng() * candidates.length)]!;
-          const parts = scoreFeatures(cellFeatures, cand.features, weights);
-          scored.push({ index: cand.index, rotation: 0, parts, adjusted: parts.similarity });
-        }
-        scored.sort((a, b) => b.adjusted - a.adjusted);
-
-        const poolSize = Math.max(1, Math.min(scored.length, 1 + Math.round(effRandom * 18)));
-        const pick = scored[Math.floor(rng() ** 1.6 * poolSize)] ?? scored[0]!;
-        const cand = candidates[pick.index]!;
-        usage.set(cand.sourceId, (usage.get(cand.sourceId) ?? 0) + 1);
-
-        const alternatives: number[] = [];
-        for (const s of scored) {
-          if (s.index === pick.index || alternatives.includes(s.index)) continue;
-          alternatives.push(s.index);
-          if (alternatives.length >= 8) break;
-        }
-
-        tiles.push({
-          id: tileLabel(row, col),
-          row,
-          column: col,
-          sourceImageId: cand.sourceId,
-          candidateIndex: cand.index,
-          cropX: cand.x,
-          cropY: cand.y,
-          cropWidth: cand.w,
-          cropHeight: cand.h,
-          rotation: pick.rotation,
-          scale: cand.scale,
-          similarityScore: pick.parts.similarity,
-          brightnessScore: pick.parts.brightness,
-          colorScore: pick.parts.color,
-          structureScore: pick.parts.structure,
-          locked: false,
-          alternatives,
-        });
+        const c = describeVirtualTargetCell(targetBmp, layout, row, col, rows, columns);
+        maxContrast = Math.max(maxContrast, c.features.contrast);
+        maxEdge = Math.max(maxEdge, c.features.edgeDensity);
+        cells.push({ row, column: col, features: c.features, coverage: c.coverage });
       }
-      if (row % 2 === 0) {
-        report("Matching target tiles...", 0.34 + (0.6 * (row + 1)) / rows, `${total} target tiles`);
+    }
+    const jobs: Job[] = cells.map((c) => {
+      const importance = cellImportance(c.features, maxContrast, maxEdge, c.coverage);
+      return {
+        ...c,
+        importance,
+        // deterministic seeded jitter so equally important cells are spread across
+        // the canvas instead of being consumed top-to-bottom
+        order: importance + (rng() - 0.5) * 0.14,
+      };
+    });
+    jobs.sort((a, b) => b.order - a.order);
+
+    report("Matching target tiles...", 0.34, `${total} composition cells`);
+    await yieldToUI();
+
+    const assigned = new Map<string, { luminance: number }>();
+    const tiles: MosaicTile[] = [];
+    let done = 0;
+
+    for (const job of jobs) {
+      const { row, column: col } = job;
+      const locked = lockedByKey.get(`${row}:${col}`);
+      if (locked) {
+        tiles.push({ ...locked, targetCoverage: job.coverage });
+        usage.set(locked.sourceImageId, (usage.get(locked.sourceImageId) ?? 0) + 1);
+        done++;
+        continue;
+      }
+
+      const cellFeatures = job.features;
+      const isPadding = job.coverage < 0.5;
+
+      // neighbour continuity: average luminance of already-assigned neighbours
+      let nbLum = 0;
+      let nbCount = 0;
+      for (const [dr, dc] of [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ] as const) {
+        const n = assigned.get(`${row + dr}:${col + dc}`);
+        if (n) {
+          nbLum += n.luminance;
+          nbCount++;
+        }
+      }
+      const nbAvg = nbCount ? nbLum / nbCount : null;
+
+      const pool: number[] = [];
+      if (sampleSize >= candidates.length) {
+        for (let i = 0; i < candidates.length; i++) pool.push(i);
+      } else {
+        for (let i = 0; i < sampleSize; i++) pool.push(Math.floor(rng() * candidates.length));
+      }
+
+      type Scored = {
+        index: number;
+        rotation: 0 | 90 | 180 | 270;
+        parts: ScoreParts;
+        adjusted: number;
+      };
+      const scored: Scored[] = [];
+      const cellRandom = isPadding ? Math.min(1, effRandom + 0.25) : effRandom;
+
+      for (const idx of pool) {
+        const cand = candidates[idx]!;
+        const used = usage.get(cand.sourceId) ?? 0;
+        // hard ceiling only
+        if (used >= hardCap && analyzed.length > 1) continue;
+        // progressive reuse penalty: negligible when lightly used, strong near the cap
+        const softRatio = used / softShare;
+        const capRatio = used / hardCap;
+        const reuse =
+          settings.diversity * (Math.pow(softRatio, 1.8) * 0.14 + Math.pow(capRatio, 2.4) * 0.5);
+
+        let bias = 0;
+        if (isPadding) {
+          const f = cand.features;
+          // padding must read as astronomical negative space: dark, low structure
+          bias -= Math.max(0, f.luminance - layout.backgroundFeatures.luminance * 1.6) * 0.9;
+          bias -= Math.max(0, f.edgeDensity - layout.backgroundFeatures.edgeDensity - 0.18) * 0.5;
+          if (nbAvg !== null) bias -= Math.min(0.3, Math.abs(f.luminance - nbAvg) * 0.8);
+        }
+
+        for (const rot of rotations) {
+          const feats = this.rotatedFeatures[idx]?.[ROTATIONS.indexOf(rot)] ?? cand.features;
+          const parts = scoreFeatures(cellFeatures, feats, weights);
+          const adjusted =
+            parts.similarity -
+            reuse +
+            bias +
+            mixBonus(cand.sourceId) +
+            (rng() - 0.5) * 0.5 * cellRandom;
+          scored.push({ index: idx, rotation: rot, parts, adjusted });
+        }
+      }
+      if (scored.length === 0) {
+        const cand = candidates[Math.floor(rng() * candidates.length)]!;
+        const parts = scoreFeatures(cellFeatures, cand.features, weights);
+        scored.push({ index: cand.index, rotation: 0, parts, adjusted: parts.similarity });
+      }
+      scored.sort((a, b) => b.adjusted - a.adjusted);
+
+      const poolSize = Math.max(1, Math.min(scored.length, 1 + Math.round(cellRandom * 18)));
+      const pick = scored[Math.floor(rng() ** 1.6 * poolSize)] ?? scored[0]!;
+      const cand = candidates[pick.index]!;
+      usage.set(cand.sourceId, (usage.get(cand.sourceId) ?? 0) + 1);
+      assigned.set(`${row}:${col}`, { luminance: cand.features.luminance });
+
+      const alternatives: number[] = [];
+      for (const s of scored) {
+        if (s.index === pick.index || alternatives.includes(s.index)) continue;
+        alternatives.push(s.index);
+        if (alternatives.length >= 8) break;
+      }
+
+      tiles.push({
+        id: tileLabel(row, col),
+        row,
+        column: col,
+        sourceImageId: cand.sourceId,
+        candidateIndex: cand.index,
+        cropX: cand.x,
+        cropY: cand.y,
+        cropWidth: cand.w,
+        cropHeight: cand.h,
+        rotation: pick.rotation,
+        scale: cand.scale,
+        similarityScore: pick.parts.similarity,
+        brightnessScore: pick.parts.brightness,
+        colorScore: pick.parts.color,
+        structureScore: pick.parts.structure,
+        locked: false,
+        targetCoverage: job.coverage,
+        alternatives,
+      });
+
+      done++;
+      if (done % Math.max(1, Math.round(total / 24)) === 0) {
+        report("Matching target tiles...", 0.34 + (0.6 * done) / total, `${total} composition cells`);
         await yieldToUI();
       }
     }
+
+    // original row/column coordinates are preserved; restore row-major order
+    tiles.sort((a, b) => a.row - b.row || a.column - b.column);
 
     report("Rendering mosaic...", 0.98);
     await yieldToUI();
@@ -510,6 +594,7 @@ export class BrowserAnalysisEngine implements MosaicAnalysisEngine {
       candidateCount: candidates.length,
       createdAt: Date.now(),
       engine: "visual",
+      layout,
     };
   }
 
@@ -519,14 +604,16 @@ export class BrowserAnalysisEngine implements MosaicAnalysisEngine {
     tile: MosaicTile,
     settings: MosaicSettings,
     abstraction: number,
+    layout: VirtualTargetLayout,
   ) {
-    const cell = describeRegion(
+    const cell = describeVirtualTargetCell(
       targetBmp,
-      tile.column / settings.columns,
-      tile.row / settings.rows,
-      1 / settings.columns,
-      1 / settings.rows,
-    );
+      layout,
+      tile.row,
+      tile.column,
+      settings.rows,
+      settings.columns,
+    ).features;
     const w = weightsForAbstraction(abstraction);
     return this.candidates
       .map((c) => ({ candidate: c, parts: scoreFeatures(cell, c.features, w) }))
