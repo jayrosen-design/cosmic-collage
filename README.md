@@ -195,7 +195,7 @@ sequenceDiagram
   RN-->>U: cosmic-collage.png
 ```
 
-### 0.4 Data model relationships
+### 0.5 Data model relationships
 
 ```mermaid
 erDiagram
@@ -247,7 +247,7 @@ erDiagram
   }
 ```
 
-### 0.5 Extension seam for remote / AI matching
+### 0.6 Extension seam for remote / AI matching
 
 ```mermaid
 graph LR
