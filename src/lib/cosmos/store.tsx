@@ -103,6 +103,7 @@ interface StudioValue {
   imageById: (id: string) => SourceImage | undefined;
   suggest: (tile: MosaicTile, mode: InspectorMode) => Array<{ candidate: CandidateCrop; score: number }>;
   replaceTile: (tileId: string, candidateIndex: number) => void;
+  swapTiles: (aId: string, bId: string) => void;
   rotateTile: (tileId: string) => void;
   toggleLock: (tileId: string) => void;
 }
@@ -378,6 +379,36 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     imageById: (id) => images.find((i) => i.id === id),
     suggest,
     replaceTile,
+    swapTiles: (aId, bId) =>
+      setMosaic((m) => {
+        if (!m || aId === bId) return m;
+        const a = m.tiles.find((t) => t.id === aId);
+        const b = m.tiles.find((t) => t.id === bId);
+        if (!a || !b || a.locked || b.locked) return m;
+        const content = (t: MosaicTile) => ({
+          sourceImageId: t.sourceImageId,
+          candidateIndex: t.candidateIndex,
+          cropX: t.cropX,
+          cropY: t.cropY,
+          cropWidth: t.cropWidth,
+          cropHeight: t.cropHeight,
+          rotation: t.rotation,
+          scale: t.scale,
+          similarityScore: t.similarityScore,
+          brightnessScore: t.brightnessScore,
+          colorScore: t.colorScore,
+          structureScore: t.structureScore,
+          alternatives: t.alternatives,
+        });
+        const ca = content(a);
+        const cb = content(b);
+        return {
+          ...m,
+          tiles: m.tiles.map((t) =>
+            t.id === aId ? { ...t, ...cb } : t.id === bId ? { ...t, ...ca } : t,
+          ),
+        };
+      }),
     rotateTile,
     toggleLock,
   };
