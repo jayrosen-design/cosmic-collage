@@ -1,5 +1,28 @@
-import { Check, Dices, Download, Lock, LockOpen, RefreshCw, Save, Sparkles } from "lucide-react";
+import {
+  Check,
+  Dices,
+  Download,
+  Info,
+  Lock,
+  LockOpen,
+  RefreshCw,
+  Save,
+  Settings2,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { useState } from "react";
+import { AiSettingsDialog } from "@/components/cosmos/AiSettingsDialog";
+import { estimateRequests } from "@/lib/cosmos/ai-engine";
+import { grantNavigatorConsent, hasNavigatorConsent } from "@/lib/cosmos/navigator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { notifyGalleryChanged, saveGalleryEntry } from "@/lib/cosmos/gallery";
 import { PRESETS, useStudio } from "@/lib/cosmos/store";
 import { WAVELENGTH_LABEL, type Wavelength } from "@/lib/cosmos/types";
@@ -39,10 +62,42 @@ function Row({
 }
 
 export function ControlsPanel() {
-  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic, images, project } =
-    useStudio();
+  const {
+    settings,
+    patchSettings,
+    generate,
+    generating,
+    newSeed,
+    sourcePool,
+    mosaic,
+    images,
+    project,
+    aiGenerating,
+    aiStats,
+    aiError,
+    navigatorConnected,
+    generateWithAI,
+    cancelAIGeneration,
+    dismissAiResult,
+  } = useStudio();
   const [exporting, setExporting] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
+
+  const estimate = estimateRequests(settings.columns * settings.rows);
+
+  const startAi = () => {
+    if (!navigatorConnected) {
+      setAiSettingsOpen(true);
+      return;
+    }
+    if (!hasNavigatorConsent()) {
+      setConsentOpen(true);
+      return;
+    }
+    void generateWithAI();
+  };
 
   const downloadPng = async () => {
     if (!mosaic) return;
@@ -350,6 +405,47 @@ export function ControlsPanel() {
       </div>
 
       <div className="sticky bottom-0 mt-auto space-y-2 border-t border-border bg-surface p-3">
+        {aiStats && (
+          <div className="space-y-1.5 rounded-sm border border-primary/40 bg-primary/5 p-2.5">
+            <div className="flex items-baseline justify-between">
+              <span className="label-xs text-primary">AI Alignment Complete</span>
+              <button
+                onClick={dismissAiResult}
+                aria-label="Dismiss AI Alignment summary"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+            <p className="data-mono text-foreground">
+              {aiStats.replaced} tiles replaced · {aiStats.rotated} rotated · {aiStats.reviewed}{" "}
+              regions reviewed
+              {aiStats.regionsFlagged > 0 ? ` · ${aiStats.regionsFlagged} AI regions flagged` : ""}
+            </p>
+            <dl className="space-y-0.5">
+              {[
+                ["Structure", aiStats.before.structure, aiStats.after.structure],
+                ["Brightness", aiStats.before.brightness, aiStats.after.brightness],
+                ["Average match", aiStats.before.similarity, aiStats.after.similarity],
+              ].map(([label, before, after]) => (
+                <div key={label as string} className="flex items-baseline justify-between">
+                  <dt className="label-xs">{label as string}</dt>
+                  <dd className="data-mono text-foreground">
+                    {(before as number).toFixed(2)} → {(after as number).toFixed(2)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {aiError && (
+          <div className="rounded-sm border border-destructive/50 bg-destructive/10 p-2.5">
+            <p className="label-xs text-destructive">AI Alignment could not complete</p>
+            <p className="mt-1 text-xs text-muted-foreground">{aiError}</p>
+          </div>
+        )}
+
         <Button
           onClick={() => void generate()}
           disabled={generating}
@@ -362,6 +458,40 @@ export function ControlsPanel() {
           )}
           {generating ? "Working" : "Generate Mosaic"}
         </Button>
+        <p className="data-mono text-center text-muted-foreground">Visual Analysis</p>
+
+        <div className="flex gap-2">
+          <Button
+            onClick={aiGenerating ? cancelAIGeneration : startAi}
+            disabled={generating}
+            variant="outline"
+            className="flex-1 gap-2 rounded-sm border-primary/50 bg-primary/10 font-mono text-xs tracking-wider uppercase text-foreground hover:bg-primary/20"
+          >
+            {aiGenerating ? (
+              <RefreshCw className="size-3.5 animate-spin" />
+            ) : (
+              <span aria-hidden>✦</span>
+            )}
+            {aiGenerating ? "Cancel AI Alignment" : "AI Alignment"}
+          </Button>
+          <Button
+            variant="outline"
+            aria-label="AI settings"
+            title="NaviGator Toolkit settings"
+            onClick={() => setAiSettingsOpen(true)}
+            className="w-9 rounded-sm border-border bg-background p-0 text-muted-foreground hover:text-foreground"
+          >
+            <Settings2 className="size-3.5" />
+          </Button>
+        </div>
+        <p
+          className="data-mono flex items-start gap-1 text-muted-foreground"
+          title="AI Alignment combines Cosmic Collage's existing statistical image analysis with NaviGator multimodal reasoning to improve the selection, rotation, and structural placement of real photographic fragments. It does not generate or alter source imagery."
+        >
+          <Info className="mt-px size-3 shrink-0" />
+          NaviGator Toolkit · {navigatorConnected ? "connected" : "no API key"} · will analyze ~
+          {estimate.regions} regions
+        </p>
         <Button
           variant="outline"
           onClick={() => void downloadPng()}
@@ -381,6 +511,47 @@ export function ControlsPanel() {
           {saved ? "Saved to Gallery" : "Save to Gallery"}
         </Button>
       </div>
+
+      <AiSettingsDialog open={aiSettingsOpen} onOpenChange={setAiSettingsOpen} />
+
+      <Dialog open={consentOpen} onOpenChange={setConsentOpen}>
+        <DialogContent className="max-w-md border-border bg-surface">
+          <DialogHeader>
+            <DialogTitle className="font-display text-base text-foreground">
+              Before AI Alignment runs
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              AI Alignment sends reduced-resolution copies of the target and selected collage regions
+              to NaviGator Toolkit for analysis. Original full-resolution source photographs are not
+              sent unless required by a future feature.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="data-mono text-muted-foreground">
+            This run will make about {estimate.total} analysis requests ({estimate.regions} regions
+            plus one global comparison). No imagery is generated — NaviGator only chooses between
+            existing photographic fragments.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setConsentOpen(false)}
+              className="rounded-sm border-border bg-background font-mono text-xs tracking-wider uppercase"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                grantNavigatorConsent();
+                setConsentOpen(false);
+                void generateWithAI();
+              }}
+              className="rounded-sm bg-amber font-mono text-xs tracking-wider uppercase text-[oklch(0.18_0.01_250)] hover:bg-amber/90"
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

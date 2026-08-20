@@ -4,7 +4,7 @@ import { useStudio } from "@/lib/cosmos/store";
 import { renderMosaic } from "@/lib/cosmos/render";
 import { cn } from "@/lib/utils";
 
-export type CanvasView = "target" | "reconstruction" | "compare";
+export type CanvasView = "target" | "reconstruction" | "baseline" | "compare";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 12;
@@ -23,6 +23,10 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     swapTiles,
     generating,
     progress,
+    aiBaseline,
+    aiGenerating,
+    aiProgress,
+    settings,
   } = useStudio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -33,6 +37,9 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const [panning, setPanning] = useState(false);
   const [dragTileId, setDragTileId] = useState<string | null>(null);
   const [hoverTileId, setHoverTileId] = useState<string | null>(null);
+  const [showAiChanges, setShowAiChanges] = useState(true);
+  const baselineRef = useRef<HTMLCanvasElement>(null);
+  const adjusted = (mosaic?.tiles ?? []).filter((t) => t.aiAdjustment);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -46,6 +53,12 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
       cancelled = true;
     };
   }, [mosaic, images, selectedTileId, view]);
+
+  useEffect(() => {
+    const canvas = baselineRef.current;
+    if (!canvas || !aiBaseline || view !== "baseline") return;
+    void renderMosaic(canvas, aiBaseline, images);
+  }, [aiBaseline, images, view]);
 
   const reset = useCallback(() => {
     setCamera({ zoom: 1, offset: { x: 0, y: 0 } });
@@ -189,14 +202,45 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
             />
           )}
 
+          {view === "baseline" &&
+            (aiBaseline ? (
+              <canvas ref={baselineRef} className="max-h-full max-w-full object-contain" />
+            ) : (
+              <p className="data-mono text-muted-foreground">
+                Run AI Alignment to compare against the Visual Analysis reconstruction.
+              </p>
+            ))}
+
           {view === "reconstruction" && (
-            <canvas
-              ref={canvasRef}
-              onPointerDown={onCanvasPointerDown}
-              onPointerMove={onCanvasPointerMove}
-              onPointerUp={onCanvasPointerUp}
-              className={cn(canvasClass, "transition-opacity", ready ? "opacity-100" : "opacity-40")}
-            />
+            <div className="relative">
+              <canvas
+                ref={canvasRef}
+                onPointerDown={onCanvasPointerDown}
+                onPointerMove={onCanvasPointerMove}
+                onPointerUp={onCanvasPointerUp}
+                className={cn(canvasClass, "transition-opacity", ready ? "opacity-100" : "opacity-40")}
+              />
+              {showAiChanges && adjusted.length > 0 && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${settings.columns}, 1fr)`,
+                    gridTemplateRows: `repeat(${settings.rows}, 1fr)`,
+                  }}
+                >
+                  {mosaic?.tiles.map((t) => (
+                    <div
+                      key={t.id}
+                      className={cn(
+                        "border",
+                        t.aiAdjustment ? "border-primary/70 bg-primary/10" : "border-transparent",
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {view === "compare" && target && (
@@ -262,13 +306,44 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
           </button>
         </div>
 
+        {adjusted.length > 0 && view === "reconstruction" && (
+          <button
+            type="button"
+            onClick={() => setShowAiChanges((v) => !v)}
+            className="data-mono absolute top-4 left-4 rounded border border-border bg-surface/90 px-2 py-1 text-[10px] text-foreground backdrop-blur hover:bg-muted"
+          >
+            {showAiChanges ? "✦ Hide AI changes" : "✦ Show AI changes"} ({adjusted.length})
+          </button>
+        )}
+
         <p className="data-mono pointer-events-none absolute bottom-2 left-4 text-[10px] text-muted-foreground">
           scroll = zoom · right-drag = pan · left-drag tile = swap
           {dragTileId && hoverTileId ? " · release to swap" : ""}
         </p>
       </div>
 
-      {generating && (
+      {aiGenerating && (
+        <div className="absolute inset-x-0 bottom-0 border-t border-primary/40 bg-surface/95 px-6 py-3 backdrop-blur">
+          <div className="flex items-baseline justify-between">
+            <span className="data-mono text-primary">
+              ✦ {aiProgress?.phase ?? "Starting AI Alignment"}
+            </span>
+            <span className="data-mono text-muted-foreground">
+              {aiProgress?.reviewedRegions != null && aiProgress?.plannedRegions != null
+                ? `region ${aiProgress.reviewedRegions}/${aiProgress.plannedRegions}`
+                : aiProgress?.detail}
+            </span>
+          </div>
+          <div className="mt-2 h-px w-full bg-border">
+            <div
+              className="h-px bg-primary transition-all"
+              style={{ width: `${Math.round((aiProgress?.value ?? 0) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {generating && !aiGenerating && (
         <div className="absolute inset-x-0 bottom-0 border-t border-border bg-surface/95 px-6 py-3 backdrop-blur">
           <div className="flex items-baseline justify-between">
             <span className="data-mono text-foreground">{progress?.phase ?? "Working..."}</span>

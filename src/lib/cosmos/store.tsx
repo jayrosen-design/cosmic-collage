@@ -27,6 +27,12 @@ import type {
   Wavelength,
 } from "./types";
 import { fileToStoredImage, listUploads, removeUpload, saveUploads, updateUpload } from "./uploads";
+import {
+  aiEngine,
+  type AiAlignmentStats,
+  type AiProgress,
+} from "./ai-engine";
+import { getNavigatorApiKey, NavigatorError } from "./navigator";
 
 
 interface ManifestImage {
@@ -109,7 +115,19 @@ interface StudioValue {
   swapTiles: (aId: string, bId: string) => void;
   rotateTile: (tileId: string) => void;
   toggleLock: (tileId: string) => void;
+  /* AI Alignment (NaviGator Toolkit) */
+  aiGenerating: boolean;
+  aiProgress: AiProgress | null;
+  aiBaseline: Mosaic | null;
+  aiStats: AiAlignmentStats | null;
+  aiError: string | null;
+  navigatorConnected: boolean;
+  refreshNavigatorConnection: () => void;
+  generateWithAI: () => Promise<void>;
+  cancelAIGeneration: () => void;
+  dismissAiResult: () => void;
 }
+
 
 const StudioContext = createContext<StudioValue | null>(null);
 
@@ -140,6 +158,17 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const targetBmp = useRef<AnalysisBitmap | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiProgress, setAiProgress] = useState<AiProgress | null>(null);
+  const [aiBaseline, setAiBaseline] = useState<Mosaic | null>(null);
+  const [aiStats, setAiStats] = useState<AiAlignmentStats | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [navigatorConnected, setNavigatorConnected] = useState(false);
+  const aiAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    setNavigatorConnected(!!getNavigatorApiKey());
+  }, []);
 
   const target = images.find((i) => i.id === (project?.targetId ?? ""));
   const sourcePool = useMemo(
@@ -227,6 +256,69 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       setProgress(null);
     }
   }, [target, images, settings, generating, mosaic]);
+
+  const refreshNavigatorConnection = useCallback(() => {
+    setNavigatorConnected(!!getNavigatorApiKey());
+  }, []);
+
+  const cancelAIGeneration = useCallback(() => {
+    aiAbort.current?.abort();
+  }, []);
+
+  const generateWithAI = useCallback(async () => {
+    if (!target || generating || aiGenerating) return;
+    if (!getNavigatorApiKey()) {
+      setAiError("No NaviGator API key is configured in this browser.");
+      return;
+    }
+    const sources = images.filter(
+      (i) => i.enabled && (i.id !== target.id || settings.includeTargetInSources),
+    );
+    if (sources.length === 0) return;
+
+    const controller = new AbortController();
+    aiAbort.current = controller;
+    setAiGenerating(true);
+    setAiError(null);
+    setAiStats(null);
+    setSelectedTileId(null);
+
+    let baselineMosaic: Mosaic | null = null;
+    try {
+      const el = await loadImage(target.url);
+      targetBmp.current = makeAnalysisBitmap(el, 640);
+      const result = await aiEngine.align(settings, {
+        target,
+        sources,
+        lockedTiles: mosaic?.tiles.filter((t) => t.locked) ?? [],
+        signal: controller.signal,
+        onProgress: setAiProgress,
+        onBaseline: (m) => {
+          baselineMosaic = m;
+          setAiBaseline(m);
+          setMosaic(m);
+        },
+      });
+      setAiBaseline(result.baseline);
+      setMosaic(result.mosaic);
+      setAiStats(result.stats);
+    } catch (err) {
+      // Never discard a valid Visual Analysis reconstruction because AI failed.
+      if (baselineMosaic) setMosaic(baselineMosaic);
+      const cancelled = controller.signal.aborted;
+      setAiError(
+        cancelled
+          ? "AI Alignment was cancelled. Your Visual Analysis reconstruction has been preserved."
+          : err instanceof NavigatorError
+            ? `${err.message} Your Visual Analysis reconstruction has been preserved.`
+            : "AI Alignment could not complete. Your Visual Analysis reconstruction has been preserved.",
+      );
+    } finally {
+      aiAbort.current = null;
+      setAiGenerating(false);
+      setAiProgress(null);
+    }
+  }, [target, images, settings, generating, aiGenerating, mosaic]);
 
   // auto-generate the first collage once the demo archive is ready
   const autoRan = useRef(false);
@@ -376,7 +468,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     generating,
     progress,
     selectedTileId,
-    engineMode: browserEngine.mode,
+    engineMode: mosaic?.engine ?? browserEngine.mode,
     activeDemo,
     openDemo,
     patchSettings,
@@ -442,6 +534,19 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       }),
     rotateTile,
     toggleLock,
+    aiGenerating,
+    aiProgress,
+    aiBaseline,
+    aiStats,
+    aiError,
+    navigatorConnected,
+    refreshNavigatorConnection,
+    generateWithAI,
+    cancelAIGeneration,
+    dismissAiResult: () => {
+      setAiStats(null);
+      setAiError(null);
+    },
   };
 
   return <StudioContext.Provider value={value}>{children}</StudioContext.Provider>;
