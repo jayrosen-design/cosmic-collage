@@ -5,7 +5,14 @@
  * mosaics, gallery entries, exports, CSV manifests, URLs, logs or error messages.
  */
 
-export const NAVIGATOR_BASE_URL = "https://api.ai.it.ufl.edu/v1";
+/** Upstream NaviGator Toolkit (OpenAI-compatible) base URL. */
+export const NAVIGATOR_UPSTREAM_URL = "https://api.ai.it.ufl.edu/v1";
+
+/**
+ * Requests go through a same-origin proxy route because the NaviGator API does
+ * not return CORS headers — a direct browser fetch always fails.
+ */
+export const NAVIGATOR_BASE_URL = "/api/navigator";
 
 const NAVIGATOR_API_KEY = "cosmic-collage.navigator.api-key";
 const NAVIGATOR_MODEL = "cosmic-collage.navigator.model";
