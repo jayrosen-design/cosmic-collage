@@ -206,6 +206,7 @@ erDiagram
   MOSAIC ||--o{ MOSAIC_TILE : "contains"
   MOSAIC_TILE }o--|| SOURCE_IMAGE : "sourceImageId"
   MOSAIC_TILE ||--o{ CANDIDATE_CROP : "alternatives"
+  MOSAIC_TILE ||--o| AI_ADJUSTMENT : "aiAdjustment"
 
   SOURCE_IMAGE {
     string id
@@ -224,6 +225,17 @@ erDiagram
     int rotation
     float similarity
     boolean locked
+  }
+  AI_ADJUSTMENT {
+    boolean changed
+    boolean reviewed
+    string previousSourceImageId
+    int previousRotation
+    float previousSimilarityScore
+    float previousStructureScore
+    float previousBrightnessScore
+    string reason
+    float confidence
   }
   IMAGE_FEATURES {
     float meanLuminance
