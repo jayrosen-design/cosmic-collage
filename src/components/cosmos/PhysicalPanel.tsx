@@ -24,7 +24,7 @@ export function PhysicalPanel() {
     if (!mosaic) return;
     const canvas = document.createElement("canvas");
     await renderMosaic(canvas, mosaic, images, { tilePx: 96 });
-    downloadCanvas(canvas, `cosmos-collage.${type === "image/png" ? "png" : "jpg"}`, type);
+    downloadCanvas(canvas, `cosmic-collage.${type === "image/png" ? "png" : "jpg"}`, type);
   };
 
   if (!mosaic) {

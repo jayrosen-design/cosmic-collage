@@ -29,7 +29,7 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <nav className="flex items-center gap-1">
-          <Link to="/studio" className={navClass(path === "/studio")}>
+          <Link to="/" className={navClass(path === "/" || path === "/studio")}>
             Studio
           </Link>
           <Link to="/archive" className={navClass(path === "/archive")}>
@@ -48,6 +48,9 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
             className={navClass(path.startsWith("/project"))}
           >
             Project
+          </Link>
+          <Link to="/about" className={navClass(path === "/about")}>
+            About
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-4">
