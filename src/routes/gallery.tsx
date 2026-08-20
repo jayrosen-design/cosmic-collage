@@ -41,10 +41,21 @@ function Meta({ label, value }: { label: string; value: string }) {
   );
 }
 
+interface DemoIndexEntry {
+  slug: string;
+  name: string;
+  object: string;
+  description: string;
+  thumbnail: string;
+  imageCount: number;
+}
+
 function GalleryPage() {
-  const { project, target, mosaic, settings, patchSettings } = useStudio();
+  const { activeDemo, openDemo, mosaic, settings, patchSettings } = useStudio();
   const navigate = useNavigate();
   const [entries, setEntries] = useState<GalleryEntry[]>([]);
+  const [demos, setDemos] = useState<DemoIndexEntry[]>([]);
+  const [opening, setOpening] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => setEntries(listGallery());
@@ -52,6 +63,23 @@ function GalleryPage() {
     window.addEventListener(GALLERY_EVENT, sync);
     return () => window.removeEventListener(GALLERY_EVENT, sync);
   }, []);
+
+  useEffect(() => {
+    void fetch("/demo/index.json")
+      .then((r) => r.json())
+      .then((d: { demos: DemoIndexEntry[] }) => setDemos(d.demos ?? []))
+      .catch(() => setDemos([]));
+  }, []);
+
+  const openBuiltIn = async (slug: string) => {
+    setOpening(slug);
+    try {
+      await openDemo(slug);
+      void navigate({ to: "/" });
+    } finally {
+      setOpening(null);
+    }
+  };
 
   const openEntry = (entry: GalleryEntry) => {
     patchSettings(entry.settings);
