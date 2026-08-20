@@ -38,7 +38,22 @@ function Row({
 }
 
 export function ControlsPanel() {
-  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic } = useStudio();
+  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic, images } =
+    useStudio();
+  const [exporting, setExporting] = useState(false);
+
+  const downloadPng = async () => {
+    if (!mosaic) return;
+    setExporting(true);
+    try {
+      const canvas = document.createElement("canvas");
+      await renderMosaic(canvas, mosaic, images, { tilePx: 96 });
+      downloadCanvas(canvas, "cosmic-collage.png");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const abstractionLabel =
     settings.abstraction <= 0.25
       ? "Faithful reconstruction"
