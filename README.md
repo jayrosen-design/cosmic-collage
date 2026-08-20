@@ -244,7 +244,9 @@ src/
     engine.ts             BrowserAnalysisEngine (analysis + matching)
     render.ts             canvas compositing, assembly map, exports
     store.tsx             StudioProvider: all app state and actions
+public/demo/index.json                built-in demo registry (andromeda, orion)
 public/demo/andromeda/manifest.json   demo project definition
+public/demo/orion/manifest.json       Orion Nebula demo (+ SOURCES.md provenance)
 ```
 
 ---
