@@ -176,6 +176,23 @@ export interface MosaicSettings {
   includeTargetInSources: boolean;
 }
 
+/**
+ * Shared composition geometry (Virtual Target Canvas). All coordinates are
+ * normalised 0..1 of the mosaic canvas. Computed only in composition.ts.
+ */
+export interface VirtualTargetLayout {
+  /** canvas width / height */
+  canvasAspect: number;
+  targetX: number;
+  targetY: number;
+  targetWidth: number;
+  targetHeight: number;
+  /** analytical descriptor used only for matching padding cells */
+  backgroundFeatures: ImageFeatures;
+  /** robust low-percentile luminance of the target's sky */
+  backgroundLowLuminance: number;
+}
+
 export interface Mosaic {
   settings: MosaicSettings;
   targetId: string;
@@ -183,6 +200,8 @@ export interface Mosaic {
   candidateCount: number;
   createdAt: number;
   engine: "visual" | "ai";
+  /** composition geometry this mosaic was reconstructed against */
+  layout?: VirtualTargetLayout;
 }
 
 export interface Project {
