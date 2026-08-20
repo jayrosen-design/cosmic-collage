@@ -16,8 +16,8 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
-    void openDemo();
-  }, [openDemo]);
+    if (!project) void openDemo();
+  }, [openDemo, project]);
 
   return (
     <div className="flex h-screen flex-col bg-background">
