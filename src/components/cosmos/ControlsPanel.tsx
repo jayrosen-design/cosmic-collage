@@ -371,6 +371,15 @@ export function ControlsPanel() {
           <Download className="size-3.5" />
           {exporting ? "Preparing PNG" : "Download PNG"}
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => void saveToGallery()}
+          disabled={!mosaic}
+          className="w-full gap-2 rounded-sm border-border bg-background font-mono text-xs tracking-wider uppercase"
+        >
+          {saved ? <Check className="size-3.5 text-amber" /> : <Save className="size-3.5" />}
+          {saved ? "Saved to Gallery" : "Save to Gallery"}
+        </Button>
       </div>
     </div>
   );
