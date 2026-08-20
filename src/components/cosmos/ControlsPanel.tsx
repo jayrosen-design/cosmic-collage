@@ -1,6 +1,8 @@
-import { Dices, Lock, LockOpen, RefreshCw, Sparkles } from "lucide-react";
+import { Dices, Download, Lock, LockOpen, RefreshCw, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { PRESETS, useStudio } from "@/lib/cosmos/store";
 import { WAVELENGTH_LABEL, type Wavelength } from "@/lib/cosmos/types";
+import { downloadCanvas, renderMosaic } from "@/lib/cosmos/render";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
