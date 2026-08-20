@@ -1,5 +1,6 @@
-import { Dices, Download, Lock, LockOpen, RefreshCw, Sparkles } from "lucide-react";
+import { Check, Dices, Download, Lock, LockOpen, RefreshCw, Save, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { notifyGalleryChanged, saveGalleryEntry } from "@/lib/cosmos/gallery";
 import { PRESETS, useStudio } from "@/lib/cosmos/store";
 import { WAVELENGTH_LABEL, type Wavelength } from "@/lib/cosmos/types";
 import { downloadCanvas, renderMosaic } from "@/lib/cosmos/render";
@@ -38,9 +39,10 @@ function Row({
 }
 
 export function ControlsPanel() {
-  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic, images } =
+  const { settings, patchSettings, generate, generating, newSeed, sourcePool, mosaic, images, project } =
     useStudio();
   const [exporting, setExporting] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const downloadPng = async () => {
     if (!mosaic) return;
@@ -52,6 +54,29 @@ export function ControlsPanel() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const saveToGallery = async () => {
+    if (!mosaic) return;
+    const canvas = document.createElement("canvas");
+    await renderMosaic(canvas, mosaic, images, { tilePx: 26 });
+    saveGalleryEntry({
+      id: `collage-${Date.now()}`,
+      name: `${project?.object ?? "Collage"} · ${settings.columns}×${settings.rows}`,
+      object: project?.object ?? "Unknown object",
+      createdAt: Date.now(),
+      columns: settings.columns,
+      rows: settings.rows,
+      tileCount: mosaic.tiles.length,
+      sourceCount: new Set(mosaic.tiles.map((t) => t.sourceImageId)).size,
+      abstraction: settings.abstraction,
+      seed: settings.seed,
+      thumbnail: canvas.toDataURL("image/jpeg", 0.72),
+      settings,
+    });
+    notifyGalleryChanged();
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
   };
 
   const abstractionLabel =
@@ -345,6 +370,15 @@ export function ControlsPanel() {
         >
           <Download className="size-3.5" />
           {exporting ? "Preparing PNG" : "Download PNG"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => void saveToGallery()}
+          disabled={!mosaic}
+          className="w-full gap-2 rounded-sm border-border bg-background font-mono text-xs tracking-wider uppercase"
+        >
+          {saved ? <Check className="size-3.5 text-amber" /> : <Save className="size-3.5" />}
+          {saved ? "Saved to Gallery" : "Save to Gallery"}
         </Button>
       </div>
     </div>
