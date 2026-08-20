@@ -16,6 +16,7 @@ import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as PhysicalIdRouteImport } from './routes/physical.$id'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
+import { Route as ApiNavigatorSplatRouteImport } from './routes/api/navigator.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +53,11 @@ const ProjectIdRoute = ProjectIdRouteImport.update({
   path: '/project/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiNavigatorSplatRoute = ApiNavigatorSplatRouteImport.update({
+  id: '/api/navigator/$',
+  path: '/api/navigator/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
+  '/api/navigator/$': typeof ApiNavigatorSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
+  '/api/navigator/$': typeof ApiNavigatorSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
+  '/api/navigator/$': typeof ApiNavigatorSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/physical/$id'
     | '/project/$id'
+    | '/api/navigator/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/physical/$id'
     | '/project/$id'
+    | '/api/navigator/$'
   id:
     | '__root__'
     | '/'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/physical/$id'
     | '/project/$id'
+    | '/api/navigator/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +131,7 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   PhysicalIdRoute: typeof PhysicalIdRoute
   ProjectIdRoute: typeof ProjectIdRoute
+  ApiNavigatorSplatRoute: typeof ApiNavigatorSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -172,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/navigator/$': {
+      id: '/api/navigator/$'
+      path: '/api/navigator/$'
+      fullPath: '/api/navigator/$'
+      preLoaderRoute: typeof ApiNavigatorSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -183,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   PhysicalIdRoute: PhysicalIdRoute,
   ProjectIdRoute: ProjectIdRoute,
+  ApiNavigatorSplatRoute: ApiNavigatorSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
