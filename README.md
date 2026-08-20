@@ -46,6 +46,7 @@ graph TD
     RAR["/archive"]
     RP["/project/$id"]
     RPH["/physical/$id"]
+    RNA["/api/navigator"]
   end
 
   subgraph Shell["Shared UI"]
@@ -66,9 +67,14 @@ graph TD
     EN["engine.ts (BrowserAnalysisEngine)"]
     RN["render.ts (canvas + exports)"]
     TY["types.ts (data model + engine seam)"]
+    AI["ai-engine.ts (AIAnalysisEngine)"]
+    AN["ai-analysis.ts (analysis imagery + contact sheets)"]
+    RG["registration.ts (cell importance + neighbour continuity)"]
+    NV["navigator.ts (NaviGator client)"]
   end
 
   MAN["public/demo/andromeda/manifest.json"]
+  UP["UF NaviGator Toolkit"]
 
   R0 --> SW
   RS --> SW
@@ -89,12 +95,20 @@ graph TD
   PP --> ST
 
   ST --> EN
+  ST --> AI
   ST --> MAN
   CP --> RN
   MC --> RN
   PP --> RN
   EN --> TY
   RN --> TY
+  AI --> EN
+  AI --> AN
+  AI --> RG
+  AI --> NV
+  AN --> NV
+  NV --> RNA
+  RNA --> UP
 ```
 
 ### 0.2 Generation pipeline
@@ -116,7 +130,31 @@ flowchart LR
   V --> X["PNG / JPG / assembly map / CSV manifest"]
 ```
 
-### 0.3 Interaction sequence (generate + refine + export)
+### 0.3 AI Alignment pipeline
+
+```mermaid
+flowchart LR
+  T["Target image"] -->|"renderTargetAnalysisImage"| TI["reduced-resolution JPEG"]
+  S["Source archive"] -->|"BrowserAnalysisEngine"| B["Baseline mosaic"]
+  B -->|"renderMosaicAnalysisImage"| MI["reduced-resolution JPEG"]
+  TI -->|"analyzeGlobalAlignment"| G["Global structural comparison"]
+  MI --> G
+  G -->|"regionWeightFactory"| RW["Region weights"]
+  T -->|"targetCellImportance"| CI["Cell importance map"]
+  B -->|"neighborDisagreement"| ND["Neighbour continuity"]
+  CI --> RANK["rankWeakTiles"]
+  ND --> RANK
+  RW --> RANK
+  RANK --> WEAK["Weak tile list"]
+  WEAK -->|"buildContactSheet"| CS["Contact sheets<br/>A..H candidates"]
+  CS -->|"chooseCandidate"| NAV["NaviGator vision model"]
+  NAV --> REC["Recommended swaps/rotations"]
+  REC -->|"scoreFeatures"| VAL["Numerical validation"]
+  VAL --> FINAL["Final AI-aligned mosaic"]
+  FINAL -->|"aiAdjustment provenance"| EXP["Export / inspector"]
+```
+
+### 0.4 Interaction sequence (generate + refine + export)
 
 ```mermaid
 sequenceDiagram
@@ -124,6 +162,8 @@ sequenceDiagram
   participant CP as ControlsPanel
   participant ST as StudioProvider
   participant EN as BrowserAnalysisEngine
+  participant AI as AIAnalysisEngine
+  participant NV as NaviGatorProxy
   participant MC as MosaicCanvas
   participant RN as render.ts
 
@@ -137,6 +177,15 @@ sequenceDiagram
   EN-->>ST: Mosaic + onProgress phases
   ST-->>MC: mosaic state
   MC->>RN: renderMosaic(canvas)
+  U->>CP: ✦ AI Alignment
+  CP->>ST: generateWithAI()
+  ST->>EN: generate baseline
+  EN-->>ST: baseline mosaic
+  ST->>AI: align(baseline, settings)
+  AI->>NV: global comparison + candidate sheets
+  NV-->>AI: recommendations
+  AI->>ST: refined mosaic + stats
+  ST-->>MC: mosaic state
   U->>MC: click tile
   MC->>ST: selectTile(id)
   U->>MC: drag tile onto another
