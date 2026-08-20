@@ -1,0 +1,22 @@
+{
+  "demos": [
+    {
+      "slug": "andromeda",
+      "name": "Andromeda Demo",
+      "object": "M31 - Andromeda Galaxy",
+      "description": "Ultraviolet, infrared and composite observations of Andromeda, reconstructed into itself.",
+      "manifest": "/demo/andromeda/manifest.json",
+      "thumbnail": "/__l5e/assets-v1/255a8b1a-3246-400f-ada5-d5d1725ba33e/PIA08787_GALEX_SPITZER_COMPOSITE.jpg",
+      "imageCount": 5
+    },
+    {
+      "slug": "orion",
+      "name": "Orion Nebula Demo",
+      "object": "M42 - Orion Nebula",
+      "description": "Hubble Treasury mosaic target with Hubble, Spitzer, WISE, Herschel and JWST NIRCam sources.",
+      "manifest": "/demo/orion/manifest.json",
+      "thumbnail": "/__l5e/assets-v1/9fd8ba84-80b8-4b14-b105-4ca091789a79/ORION_HUBBLE_TARGET.jpg",
+      "imageCount": 6
+    }
+  ]
+}
