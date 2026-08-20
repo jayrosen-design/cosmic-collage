@@ -92,7 +92,8 @@ interface StudioValue {
   progress: EngineProgress | null;
   selectedTileId: string | null;
   engineMode: "visual" | "ai";
-  openDemo: () => Promise<void>;
+  activeDemo: string | null;
+  openDemo: (slug?: string) => Promise<void>;
   patchSettings: (p: Partial<MosaicSettings>) => void;
   setTarget: (id: string) => void;
   toggleImage: (id: string, enabled: boolean) => void;
@@ -149,11 +150,14 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     [images, project?.targetId, settings.includeTargetInSources],
   );
 
-  const openDemo = useCallback(async () => {
-    if (project || loadingDemo) return;
+  const [activeDemo, setActiveDemo] = useState<string | null>(null);
+
+  const openDemo = useCallback(async (slug: string = "andromeda") => {
+    if (loadingDemo) return;
+    if (activeDemo === slug && project) return;
     setLoadingDemo(true);
     try {
-      const res = await fetch("/demo/andromeda/manifest.json");
+      const res = await fetch(`/demo/${slug}/manifest.json`);
       const manifest = (await res.json()) as Manifest;
       const loaded: SourceImage[] = [];
       for (const m of manifest.images) {
@@ -175,17 +179,21 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       }
       const targetImage = manifest.images.find((m) => m.type === "target") ?? manifest.images[0]!;
       setImages([...loaded, ...listUploads()]);
+      setMosaic(null);
+      setSelectedTileId(null);
+      autoRan.current = false;
       setProject({
-        id: "andromeda-demo",
+        id: `${slug}-demo`,
         name: manifest.project,
         object: manifest.object,
         targetId: targetImage.id,
         createdAt: Date.now(),
       });
+      setActiveDemo(slug);
     } finally {
       setLoadingDemo(false);
     }
-  }, [project, loadingDemo]);
+  }, [project, loadingDemo, activeDemo]);
 
   const patchSettings = useCallback((p: Partial<MosaicSettings>) => {
     setSettings((s) => ({ ...s, ...p }));
@@ -369,6 +377,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     progress,
     selectedTileId,
     engineMode: browserEngine.mode,
+    activeDemo,
     openDemo,
     patchSettings,
     setTarget: (id) => setProject((p) => (p ? { ...p, targetId: id } : p)),

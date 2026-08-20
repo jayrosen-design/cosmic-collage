@@ -1,0 +1,79 @@
+{
+  "project": "Orion Nebula Demo",
+  "object": "M42 - Orion Nebula",
+  "description": "Reconstruct the Orion Nebula from visible, infrared, and multi-observatory NASA-hosted observations.",
+  "images": [
+    {
+      "id": "HST_ORION_TREASURY_TARGET",
+      "nasaId": "STScI-01EVT1JXFVNW9X54XA378CCK1P",
+      "file": "ORION_HUBBLE_TARGET.jpg",
+      "url": "/__l5e/assets-v1/9fd8ba84-80b8-4b14-b105-4ca091789a79/ORION_HUBBLE_TARGET.jpg",
+      "title": "Orion Nebula - Hubble Treasury Mosaic",
+      "mission": "Hubble Space Telescope + ESO 2.2m",
+      "wavelength": "composite",
+      "type": "target",
+      "tags": ["nebula", "emission nebula", "star formation", "h-alpha", "trapezium", "m42"],
+      "credit": "NASA, ESA, Hubble Space Telescope Orion Treasury Project Team, Massimo Robberto (STScI, ESA)"
+    },
+    {
+      "id": "HST_ORION_VISIBLE",
+      "nasaId": "NASA-HUBBLE-M42",
+      "file": "ORION_HUBBLE_VISIBLE_SOURCE.jpg",
+      "url": "/__l5e/assets-v1/a41434c6-6783-461f-b6f2-365afbc7c2f9/ORION_HUBBLE_VISIBLE_SOURCE.jpg",
+      "title": "Hubble Orion Nebula",
+      "mission": "Hubble Space Telescope",
+      "wavelength": "rgb",
+      "type": "source",
+      "tags": ["nebula", "visible", "star formation", "trapezium", "gas", "dust", "m42"],
+      "credit": "NASA, ESA, M. Robberto (STScI/ESA) and the Hubble Space Telescope Orion Treasury Project Team"
+    },
+    {
+      "id": "PIA25434",
+      "nasaId": "PIA25434",
+      "file": "PIA25434_HERSCHEL_SPITZER_WISE_IR.jpg",
+      "url": "/__l5e/assets-v1/0b158569-c82a-4146-ba81-8b48955794fd/PIA25434_HERSCHEL_SPITZER_WISE_IR.jpg",
+      "title": "Orion Nebula in Infrared",
+      "mission": "Herschel + Spitzer + WISE",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["nebula", "infrared", "dust", "star formation", "diffuse structure", "m42"],
+      "credit": "ESA/NASA/JPL-Caltech"
+    },
+    {
+      "id": "PIA08653",
+      "nasaId": "PIA08653",
+      "file": "PIA08653_SPITZER_IR.jpg",
+      "url": "/__l5e/assets-v1/e3edd2a3-b049-4936-8458-cbf84d3068cb/PIA08653_SPITZER_IR.jpg",
+      "title": "The Sword of Orion",
+      "mission": "Spitzer Space Telescope",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["nebula", "infrared", "star field", "dust structure", "trapezium", "orion"],
+      "credit": "NASA/JPL-Caltech/Univ. of Toledo"
+    },
+    {
+      "id": "PIA16684",
+      "nasaId": "PIA16684",
+      "file": "PIA16684_WISE_IR.jpg",
+      "url": "/__l5e/assets-v1/9b25e633-203c-4967-a15b-b650639ac39a/PIA16684_WISE_IR.jpg",
+      "title": "The Cosmic Hearth",
+      "mission": "WISE",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["nebula", "infrared", "wide field", "dust", "orion molecular cloud", "star formation"],
+      "credit": "NASA/JPL-Caltech/UCLA"
+    },
+    {
+      "id": "JWST_ORION_BAR",
+      "nasaId": "STScI-01H2TX9HDRY87KFD082A74YADF",
+      "file": "JWST_ORION_BAR_NIRCAM.jpg",
+      "url": "/__l5e/assets-v1/20533a42-8957-4a8d-b4fa-77be824c862e/JWST_ORION_BAR_NIRCAM.jpg",
+      "title": "Orion Bar (NIRCam)",
+      "mission": "James Webb Space Telescope",
+      "wavelength": "ir",
+      "type": "source",
+      "tags": ["nebula", "near infrared", "orion bar", "dust structure", "star formation"],
+      "credit": "ESA/Webb, NASA, CSA, PDRs4ALL ERS Team, Mahdi Zamani (ESA/Webb)"
+    }
+  ]
+}

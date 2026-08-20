@@ -41,10 +41,21 @@ function Meta({ label, value }: { label: string; value: string }) {
   );
 }
 
+interface DemoIndexEntry {
+  slug: string;
+  name: string;
+  object: string;
+  description: string;
+  thumbnail: string;
+  imageCount: number;
+}
+
 function GalleryPage() {
-  const { project, target, mosaic, settings, patchSettings } = useStudio();
+  const { activeDemo, openDemo, mosaic, settings, patchSettings } = useStudio();
   const navigate = useNavigate();
   const [entries, setEntries] = useState<GalleryEntry[]>([]);
+  const [demos, setDemos] = useState<DemoIndexEntry[]>([]);
+  const [opening, setOpening] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => setEntries(listGallery());
@@ -52,6 +63,23 @@ function GalleryPage() {
     window.addEventListener(GALLERY_EVENT, sync);
     return () => window.removeEventListener(GALLERY_EVENT, sync);
   }, []);
+
+  useEffect(() => {
+    void fetch("/demo/index.json")
+      .then((r) => r.json())
+      .then((d: { demos: DemoIndexEntry[] }) => setDemos(d.demos ?? []))
+      .catch(() => setDemos([]));
+  }, []);
+
+  const openBuiltIn = async (slug: string) => {
+    setOpening(slug);
+    try {
+      await openDemo(slug);
+      void navigate({ to: "/" });
+    } finally {
+      setOpening(null);
+    }
+  };
 
   const openEntry = (entry: GalleryEntry) => {
     patchSettings(entry.settings);
@@ -64,46 +92,56 @@ function GalleryPage() {
         <div className="mx-auto max-w-6xl px-6 py-8">
           <h1 className="font-display text-xl text-foreground">Gallery</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Projects and saved reconstructions. The Andromeda demo ships with the instrument; every
-            other card is a collage you saved from the studio, stored in this browser with the exact
-            settings used to produce it.
+            Projects and saved reconstructions. The built-in NASA demos ship with the instrument;
+            every other card is a collage you saved from the studio, stored in this browser with the
+            exact settings used to produce it.
           </p>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* built-in demo project */}
-            <article className="overflow-hidden rounded-sm border border-amber/40 bg-surface">
-              <div className="aspect-[5/3] bg-background">
-                {target && (
+            {demos.map((d) => (
+              <article
+                key={d.slug}
+                className="overflow-hidden rounded-sm border border-amber/40 bg-surface"
+              >
+                <div className="aspect-[5/3] bg-background">
                   <img
-                    src={target.url}
-                    alt={`${project?.object ?? "Andromeda"} target observation`}
+                    src={d.thumbnail}
+                    alt={`${d.object} target observation`}
                     className="h-full w-full object-cover"
                     loading="lazy"
                   />
-                )}
-              </div>
-              <div className="space-y-3 p-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="font-display text-sm text-foreground">
-                    {project?.name ?? "Andromeda Demo"}
-                  </h2>
-                  <span className="rounded-sm border border-amber/50 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase text-amber">
-                    Demo
-                  </span>
                 </div>
-                <dl className="grid grid-cols-3 gap-2">
-                  <Meta label="Object" value={project?.object ?? "M31"} />
-                  <Meta label="Grid" value={`${settings.columns}×${settings.rows}`} />
-                  <Meta label="Tiles" value={mosaic ? String(mosaic.tiles.length) : "—"} />
-                </dl>
-                <Button
-                  onClick={() => void navigate({ to: "/studio" })}
-                  className="w-full rounded-sm bg-amber font-mono text-xs tracking-wider uppercase text-[oklch(0.18_0.01_250)] hover:bg-amber/90"
-                >
-                  Open in Studio
-                </Button>
-              </div>
-            </article>
+                <div className="space-y-3 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h2 className="font-display text-sm text-foreground">{d.name}</h2>
+                    <span className="rounded-sm border border-amber/50 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase text-amber">
+                      {activeDemo === d.slug ? "Active" : "Demo"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{d.description}</p>
+                  <dl className="grid grid-cols-3 gap-2">
+                    <Meta label="Object" value={d.object.split(" - ")[0] ?? d.object} />
+                    <Meta label="Images" value={String(d.imageCount)} />
+                    <Meta
+                      label="Tiles"
+                      value={
+                        activeDemo === d.slug && mosaic
+                          ? String(mosaic.tiles.length)
+                          : `${settings.columns}×${settings.rows}`
+                      }
+                    />
+                  </dl>
+                  <Button
+                    disabled={opening !== null}
+                    onClick={() => void openBuiltIn(d.slug)}
+                    className="w-full rounded-sm bg-amber font-mono text-xs tracking-wider uppercase text-[oklch(0.18_0.01_250)] hover:bg-amber/90"
+                  >
+                    {opening === d.slug ? "Loading…" : "Open in Studio"}
+                  </Button>
+                </div>
+              </article>
+            ))}
+
 
             {entries.map((e) => (
               <article key={e.id} className="overflow-hidden rounded-sm border border-border bg-surface">

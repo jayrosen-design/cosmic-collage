@@ -244,7 +244,9 @@ src/
     engine.ts             BrowserAnalysisEngine (analysis + matching)
     render.ts             canvas compositing, assembly map, exports
     store.tsx             StudioProvider: all app state and actions
+public/demo/index.json                built-in demo registry (andromeda, orion)
 public/demo/andromeda/manifest.json   demo project definition
+public/demo/orion/manifest.json       Orion Nebula demo (+ SOURCES.md provenance)
 ```
 
 ---
@@ -340,9 +342,16 @@ pool in memory so the Tile Inspector can rank alternatives instantly.
   `selectTile`, `imageById`, `suggest`, `replaceTile`, `swapTiles`,
   `rotateTile`, `toggleLock`.
 
-`openDemo()` fetches `/demo/andromeda/manifest.json`, maps each entry to a
-`SourceImage`, picks the `type: "target"` entry as the target, and creates the
-`Project`. `addUploads()` does the same for local `File` objects via object URLs.
+`openDemo(slug = "andromeda")` fetches `/demo/<slug>/manifest.json`, maps each
+entry to a `SourceImage`, picks the `type: "target"` entry as the target, resets
+the current mosaic, and creates the `Project` with id `<slug>-demo`. The active
+slug is exposed as `activeDemo`. Built-in demos are enumerated in
+`public/demo/index.json` (`slug`, `name`, `object`, `description`, `manifest`,
+`thumbnail`, `imageCount`); the Gallery renders one card per entry and calls
+`openDemo(slug)`. Adding a demo = drop a manifest under `public/demo/<slug>/`
+and add a row to that index. Shipped demos: `andromeda` (5 GALEX/WISE/Spitzer
+observations) and `orion` (6 Hubble/Spitzer/WISE/Herschel/JWST observations).
+`addUploads()` does the same for local `File` objects via object URLs.
 
 Manifest entry shape:
 
