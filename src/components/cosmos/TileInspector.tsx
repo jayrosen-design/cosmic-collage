@@ -93,7 +93,7 @@ export function TileInspector() {
 
   if (!tile) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+      <div className="flex h-full items-center justify-center gap-3 px-6 py-4 text-center">
         <span className="label-xs">Tile Inspector</span>
         <p className="text-xs text-muted-foreground">
           Click any tile in the reconstruction to see which photograph produced it.
@@ -103,15 +103,16 @@ export function TileInspector() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="label-xs">Tile Inspector</span>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+        <span className="label-xs">Tile Inspector — {tile.id}</span>
         <button onClick={() => selectTile(null)} className="text-muted-foreground hover:text-foreground">
           <X className="size-3.5" />
         </button>
       </div>
 
-      <div className="space-y-4 p-3">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(230px,1fr)_minmax(200px,1fr)_minmax(170px,0.8fr)_minmax(300px,1.4fr)] gap-4 overflow-x-auto p-3">
+        {/* provenance */}
         <div className="flex gap-3">
           <canvas ref={previewRef} className="h-24 w-24 shrink-0 rounded-sm border border-border" />
           <div className="min-w-0 space-y-1">
@@ -130,7 +131,8 @@ export function TileInspector() {
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {/* geometry */}
+        <dl className="space-y-1 self-start">
           {[
             ["Row / Column", `${tile.row} / ${tile.column}`],
             ["Crop", `${tile.cropX.toFixed(3)}, ${tile.cropY.toFixed(3)}`],
@@ -146,37 +148,38 @@ export function TileInspector() {
           ))}
         </dl>
 
-        <div className="space-y-2">
+        {/* metrics + actions */}
+        <div className="space-y-2 self-start">
           <Metric label="Similarity" value={tile.similarityScore} />
           <Metric label="Brightness" value={tile.brightnessScore} />
           <Metric label="Color" value={tile.colorScore} />
           <Metric label="Structure" value={tile.structureScore} />
+          <div className="flex gap-1 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 flex-1 gap-1.5 border-border bg-background text-xs"
+              onClick={() => rotateTile(tile.id)}
+            >
+              <RotateCw className="size-3.5" /> Rotate
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 flex-1 gap-1.5 border-border bg-background text-xs",
+                tile.locked && "border-amber/60 text-amber",
+              )}
+              onClick={() => toggleLock(tile.id)}
+            >
+              {tile.locked ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
+              {tile.locked ? "Locked" : "Lock"}
+            </Button>
+          </div>
         </div>
 
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 flex-1 gap-1.5 border-border bg-background text-xs"
-            onClick={() => rotateTile(tile.id)}
-          >
-            <RotateCw className="size-3.5" /> Rotate
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-8 flex-1 gap-1.5 border-border bg-background text-xs",
-              tile.locked && "border-amber/60 text-amber",
-            )}
-            onClick={() => toggleLock(tile.id)}
-          >
-            {tile.locked ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
-            {tile.locked ? "Locked" : "Lock Tile"}
-          </Button>
-        </div>
-
-        <div className="space-y-2">
+        {/* candidates */}
+        <div className="space-y-2 self-start">
           <span className="label-xs">Replace Tile — candidates</span>
           <div className="flex flex-wrap gap-1">
             {MODES.map((m) => (
@@ -194,7 +197,7 @@ export function TileInspector() {
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-4 gap-1">
+          <div className="flex flex-wrap gap-1">
             {alternatives.map(({ candidate }) => (
               <CandidateThumb
                 key={candidate.index}
@@ -207,12 +210,8 @@ export function TileInspector() {
             <p className="data-mono text-muted-foreground">No alternatives available.</p>
           )}
         </div>
-
-        <p className="border-t border-border pt-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
-          Provenance travels with the fragment. Star recognition, nebula classification and DINOv2
-          similarity: coming in AI Engine.
-        </p>
       </div>
     </div>
   );
 }
+
