@@ -329,7 +329,11 @@ export async function buildContactSheet(
 
 export const candidateChoiceSchema = z.object({
   candidateId: z.string().min(1),
-  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
+  /** how much better the chosen alternative is than the CURRENT fragment */
+  differenceFromCurrent: z.enum(["none", "minor", "clear", "strong"]).default("none"),
+  /** structural features the model read in the target region */
+  targetFeatures: z.array(z.string().max(80)).max(6).default([]),
+  /** self-reported, displayed only — the engine's own maths decides acceptance */
   confidence: z.number().min(0).max(1).optional(),
   reason: z.string().max(400).optional(),
 });
@@ -338,7 +342,8 @@ export type CandidateChoice = z.infer<typeof candidateChoiceSchema>;
 
 const SHEET_SYSTEM =
   "You are an astronomical image-analysis assistant selecting between existing photographic fragments. " +
-  "You never generate, request, paint or modify imagery. You reply with strict JSON only.";
+  "You never generate, request, paint or modify imagery. Keeping the current fragment is a correct, " +
+  "expected and frequent answer. You reply with strict JSON only.";
 
 export async function chooseCandidate(
   sheet: string,
@@ -351,9 +356,13 @@ Top-left: the TARGET region of the real observation, including its surroundings.
 Top-right: the CURRENT photographic fragment placed in that region.
 Bottom two rows: alternative fragments cropped from other real photographs, labelled ${letters.join(", ")}.
 
-Choose the candidate that best preserves the astronomical structure of the target region.
+The CURRENT fragment was chosen by a numerical matcher and may already be optimal.
+Do not prefer changing the fragment. There is no expectation that a change is needed.
+Answer with candidateId "CURRENT" whenever no alternative offers a clear and meaningful
+improvement in correspondence with the target region. In a typical review, roughly a third
+or more of regions require no change at all.
 
-Consider:
+Only name an alternative when it is meaningfully better than CURRENT, judged on:
 - structure
 - luminance
 - orientation
@@ -361,11 +370,18 @@ Consider:
 - stellar density
 - continuity with neighboring regions
 
-Do not request new imagery. Only choose from the supplied candidates. If the CURRENT fragment is already the best, answer with candidateId "CURRENT".
+Do not request new imagery. Only choose from the supplied candidates.
 
-Do not comment on rotation: rotation is decided numerically by the application after your choice.
+Report differenceFromCurrent honestly:
+- "none"   the alternative is not better than CURRENT (then answer CURRENT)
+- "minor"  a slight, arguable difference
+- "clear"  clearly better correspondence
+- "strong" substantially better correspondence
 
-Return JSON only: {"candidateId":"D","confidence":0.9,"reason":"short reason"}`;
+Also list the structural features you actually read in the target region.
+
+Return JSON only, exactly this shape:
+{"candidateId":"CURRENT","differenceFromCurrent":"none","targetFeatures":["curved luminous arm","dark lower boundary"],"confidence":0.6,"reason":"short reason"}`;
 
   return visionJson({
     system: SHEET_SYSTEM,
