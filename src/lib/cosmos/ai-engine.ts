@@ -37,7 +37,6 @@ import {
   buildContinuity,
   continuityFor,
   MIN_REFINEMENT_DELTA,
-  QUALITY_WEIGHTS,
 } from "./quality";
 import { computeVirtualTargetLayout, describeVirtualTargetCell } from "./composition";
 import type {
