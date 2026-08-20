@@ -30,7 +30,15 @@ import {
   type SheetCandidate,
 } from "./ai-analysis";
 import { NavigatorError, resolveModel, runQueue } from "./navigator";
-import { rankWeakTiles, targetCellImportance } from "./registration";
+import { rankWeakTiles, targetCellImportance, cellAt } from "./registration";
+import {
+  alignmentQuality,
+  averageQuality,
+  buildContinuity,
+  continuityFor,
+  MIN_REFINEMENT_DELTA,
+  QUALITY_WEIGHTS,
+} from "./quality";
 import { computeVirtualTargetLayout, describeVirtualTargetCell } from "./composition";
 import type {
   CandidateCrop,
@@ -79,13 +87,24 @@ export interface AiDiagnostics {
   globalRegionsFlagged: number;
   regionsQueued: number;
   successfulResponses: number;
+  /** model answered CURRENT — no change wanted */
   currentResponses: number;
   alternativeRecommendations: number;
+  /** alternatives discarded because the model itself called the gain none/minor */
+  minorDifferenceIgnored: number;
+  differenceCounts: Record<"none" | "minor" | "clear" | "strong", number>;
   acceptedAfterValidation: number;
   rejectedAfterValidation: number;
+  /** model self-report; displayed but never authoritative */
   averageConfidence: number;
-  /** mean similarity gain across accepted tiles */
+  /** mean composite alignment-quality gain across accepted tiles */
   averageChangedImprovement: number;
+  /** internal control: the same regions refined by random valid alternatives */
+  control: {
+    changed: number;
+    structureDelta: number;
+    compositeDelta: number;
+  };
 }
 
 export interface AiAlignmentStats {
@@ -96,10 +115,15 @@ export interface AiAlignmentStats {
   /** whole-mosaic averages */
   before: ScoreTriple;
   after: ScoreTriple;
+  /** composite alignment quality — the objective everything is judged against */
+  qualityBefore: number;
+  qualityAfter: number;
   /** averages restricted to tiles the AI actually changed */
   changedCount: number;
   changedBefore: ScoreTriple;
   changedAfter: ScoreTriple;
+  changedQualityBefore: number;
+  changedQualityAfter: number;
   overall: GlobalAnalysis["overall"] | null;
   diagnostics: AiDiagnostics;
 }
@@ -264,12 +288,16 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
       candidateIndex: number;
       confidence: number;
       reason: string;
+      difference: "none" | "minor" | "clear" | "strong";
+      targetFeatures: string[];
     }
 
     let reviewed = 0;
     let responded = 0;
     let currentResponses = 0;
     let alternativeResponses = 0;
+    let minorDifferenceIgnored = 0;
+    const differenceCounts = { none: 0, minor: 0, clear: 0, strong: 0 };
     const results = await runQueue<(typeof weak)[number], Refinement | null>(
       weak,
       async (entry) => {
@@ -315,16 +343,26 @@ export class AIAnalysisEngine implements MosaicAnalysisEngine {
         const id = choice.candidateId.trim().toUpperCase();
         if (id === "CURRENT") {
           currentResponses++;
+          differenceCounts.none++;
           return null;
         }
         const picked = sheet.find((s) => s.letter === id);
         if (!picked) return null;
+        const difference = choice.differenceFromCurrent ?? "none";
+        differenceCounts[difference]++;
+        // The model must claim a clear gain before the engine even evaluates it.
+        if (difference === "none" || difference === "minor") {
+          minorDifferenceIgnored++;
+          return null;
+        }
         alternativeResponses++;
         return {
           tileId: tile.id,
           candidateIndex: picked.candidate.index,
           confidence: choice.confidence ?? 0.5,
           reason: choice.reason ?? "Better structural correspondence with the target region.",
+          difference,
+          targetFeatures: choice.targetFeatures ?? [],
         };
       },
       { concurrency: CONCURRENCY, retries: 2, signal: signal ?? null },
