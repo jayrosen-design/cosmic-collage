@@ -105,12 +105,13 @@ export async function renderAssemblyMap(
   highlightSourceId?: string | null,
 ) {
   const cell = 84;
+  const cellH = Math.max(24, Math.round(cell / tileAspectFor(mosaic.settings, mosaic.layout)));
   const { columns, rows } = mosaic.settings;
   const work = document.createElement("canvas");
   await renderMosaic(work, mosaic, sources, { tilePx: cell, gap: 0, border: 0 });
 
   canvas.width = columns * cell;
-  canvas.height = rows * cell;
+  canvas.height = rows * cellH;
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(work, 0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "rgba(9,11,15,0.62)";
