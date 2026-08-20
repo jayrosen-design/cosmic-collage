@@ -307,7 +307,7 @@ export function ControlsPanel() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 mt-auto border-t border-border bg-surface p-3">
+      <div className="sticky bottom-0 mt-auto space-y-2 border-t border-border bg-surface p-3">
         <Button
           onClick={() => void generate()}
           disabled={generating}
@@ -319,6 +319,15 @@ export function ControlsPanel() {
             <Sparkles className="size-3.5" />
           )}
           {generating ? "Working" : "Generate Mosaic"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => void downloadPng()}
+          disabled={!mosaic || exporting}
+          className="w-full gap-2 rounded-sm border-border bg-background font-mono text-xs tracking-wider uppercase"
+        >
+          <Download className="size-3.5" />
+          {exporting ? "Preparing PNG" : "Download PNG"}
         </Button>
       </div>
     </div>
