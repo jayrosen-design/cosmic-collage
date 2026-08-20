@@ -1,0 +1,392 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  browserEngine,
+  describeRegion,
+  loadImage,
+  makeAnalysisBitmap,
+  scoreFeatures,
+  weightsForAbstraction,
+  type AnalysisBitmap,
+} from "./engine";
+import type {
+  CandidateCrop,
+  EngineProgress,
+  Mosaic,
+  MosaicSettings,
+  MosaicTile,
+  Project,
+  SourceImage,
+  Wavelength,
+} from "./types";
+
+interface ManifestImage {
+  id: string;
+  nasaId: string;
+  file: string;
+  url: string;
+  title: string;
+  mission: string;
+  wavelength: string;
+  type: "target" | "source";
+  tags: string[];
+  credit: string;
+}
+interface Manifest {
+  project: string;
+  object: string;
+  description: string;
+  images: ManifestImage[];
+}
+
+export const DEFAULT_SETTINGS: MosaicSettings = {
+  columns: 20,
+  rows: 12,
+  tileGap: 1,
+  tileBorder: 0,
+  aspectMode: "target",
+  abstraction: 0.55,
+  randomness: 0.2,
+  seed: 734159,
+  seedLocked: false,
+  diversity: 0.7,
+  maxTilesPerSource: 0.15,
+  allowRotation: true,
+  sourceMix: {},
+  includeTargetInSources: false,
+};
+
+export const PRESETS = [
+  { name: "Scientific", abstraction: 0.2, randomness: 0.05, diversity: 0.3 },
+  { name: "Collage", abstraction: 0.55, randomness: 0.2, diversity: 0.7 },
+  { name: "Cosmic Abstraction", abstraction: 0.85, randomness: 0.6, diversity: 0.9 },
+] as const;
+
+export type InspectorMode =
+  | "similar"
+  | "abstract"
+  | "darker"
+  | "brighter"
+  | "color"
+  | "different-source";
+
+interface StudioValue {
+  project: Project | null;
+  ready: boolean;
+  loadingDemo: boolean;
+  images: SourceImage[];
+  target: SourceImage | undefined;
+  sourcePool: SourceImage[];
+  settings: MosaicSettings;
+  mosaic: Mosaic | null;
+  generating: boolean;
+  progress: EngineProgress | null;
+  selectedTileId: string | null;
+  engineMode: "visual" | "ai";
+  openDemo: () => Promise<void>;
+  patchSettings: (p: Partial<MosaicSettings>) => void;
+  setTarget: (id: string) => void;
+  toggleImage: (id: string, enabled: boolean) => void;
+  updateImage: (id: string, patch: Partial<SourceImage>) => void;
+  removeImage: (id: string) => void;
+  addUploads: (files: FileList | File[]) => Promise<void>;
+  generate: () => Promise<void>;
+  newSeed: () => void;
+  selectTile: (id: string | null) => void;
+  imageById: (id: string) => SourceImage | undefined;
+  suggest: (tile: MosaicTile, mode: InspectorMode) => Array<{ candidate: CandidateCrop; score: number }>;
+  replaceTile: (tileId: string, candidateIndex: number) => void;
+  rotateTile: (tileId: string) => void;
+  toggleLock: (tileId: string) => void;
+}
+
+const StudioContext = createContext<StudioValue | null>(null);
+
+function normaliseWavelength(w: string): Wavelength {
+  const v = w.toLowerCase();
+  const allowed: Wavelength[] = [
+    "rgb",
+    "uv",
+    "ir",
+    "ha",
+    "oiii",
+    "sii",
+    "mono",
+    "dark",
+    "composite",
+    "other",
+  ];
+  return (allowed as string[]).includes(v) ? (v as Wavelength) : "other";
+}
+
+export function StudioProvider({ children }: { children: React.ReactNode }) {
+  const [project, setProject] = useState<Project | null>(null);
+  const [images, setImages] = useState<SourceImage[]>([]);
+  const [settings, setSettings] = useState<MosaicSettings>(DEFAULT_SETTINGS);
+  const [mosaic, setMosaic] = useState<Mosaic | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState<EngineProgress | null>(null);
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [loadingDemo, setLoadingDemo] = useState(false);
+  const targetBmp = useRef<AnalysisBitmap | null>(null);
+
+  const target = images.find((i) => i.id === (project?.targetId ?? ""));
+  const sourcePool = useMemo(
+    () =>
+      images.filter(
+        (i) => i.enabled && (i.id !== project?.targetId || settings.includeTargetInSources),
+      ),
+    [images, project?.targetId, settings.includeTargetInSources],
+  );
+
+  const openDemo = useCallback(async () => {
+    if (project || loadingDemo) return;
+    setLoadingDemo(true);
+    try {
+      const res = await fetch("/demo/andromeda/manifest.json");
+      const manifest = (await res.json()) as Manifest;
+      const loaded: SourceImage[] = [];
+      for (const m of manifest.images) {
+        const el = await loadImage(m.url);
+        loaded.push({
+          id: m.id,
+          name: m.title,
+          url: m.url,
+          wavelength: normaliseWavelength(m.wavelength),
+          nasaId: m.nasaId,
+          mission: m.mission,
+          credit: m.credit,
+          tags: m.tags,
+          enabled: true,
+          origin: "demo",
+          width: el.naturalWidth,
+          height: el.naturalHeight,
+        });
+      }
+      const targetImage = manifest.images.find((m) => m.type === "target") ?? manifest.images[0]!;
+      setImages(loaded);
+      setProject({
+        id: "andromeda-demo",
+        name: manifest.project,
+        object: manifest.object,
+        targetId: targetImage.id,
+        createdAt: Date.now(),
+      });
+    } finally {
+      setLoadingDemo(false);
+    }
+  }, [project, loadingDemo]);
+
+  const patchSettings = useCallback((p: Partial<MosaicSettings>) => {
+    setSettings((s) => ({ ...s, ...p }));
+  }, []);
+
+  const generate = useCallback(async () => {
+    if (!target || generating) return;
+    const sources = images.filter(
+      (i) => i.enabled && (i.id !== target.id || settings.includeTargetInSources),
+    );
+    if (sources.length === 0) return;
+    setGenerating(true);
+    setSelectedTileId(null);
+    try {
+      const seed = settings.seedLocked ? settings.seed : settings.seed;
+      const locked = mosaic?.tiles.filter((t) => t.locked) ?? [];
+      const result = await browserEngine.generateMosaic(
+        { ...settings, seed },
+        {
+          target,
+          sources,
+          lockedTiles: locked,
+          onProgress: setProgress,
+        },
+      );
+      const el = await loadImage(target.url);
+      targetBmp.current = makeAnalysisBitmap(el, 640);
+      setMosaic(result);
+    } finally {
+      setGenerating(false);
+      setProgress(null);
+    }
+  }, [target, images, settings, generating, mosaic]);
+
+  // auto-generate the first collage once the demo archive is ready
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!autoRan.current && target && !mosaic && !generating) {
+      autoRan.current = true;
+      void generate();
+    }
+  }, [target, mosaic, generating, generate]);
+
+  const suggest = useCallback(
+    (tile: MosaicTile, mode: InspectorMode) => {
+      const bmp = targetBmp.current;
+      if (!bmp || browserEngine.candidates.length === 0) return [];
+      const cell = describeRegion(
+        bmp,
+        tile.column / settings.columns,
+        tile.row / settings.rows,
+        1 / settings.columns,
+        1 / settings.rows,
+      );
+      const abstraction =
+        mode === "abstract" ? Math.min(1, settings.abstraction + 0.35) : mode === "similar" ? 0.1 : settings.abstraction;
+      const w = weightsForAbstraction(abstraction);
+      const current = browserEngine.candidates[tile.candidateIndex];
+      const scored = browserEngine.candidates
+        .filter((c) => (mode === "different-source" ? c.sourceId !== tile.sourceImageId : true))
+        .map((c) => {
+          const parts = scoreFeatures(cell, c.features, w);
+          let score = parts.similarity;
+          const f = c.features;
+          if (mode === "darker") score += (0.6 - f.luminance) * 0.9;
+          if (mode === "brighter") score += (f.luminance - 0.4) * 0.9;
+          if (mode === "color") score += f.s * 0.7;
+          if (mode === "abstract" && current) {
+            score += Math.min(0.35, Math.abs(f.h - current.features.h)) * 0.6;
+          }
+          return { candidate: c, score };
+        })
+        .sort((a, b) => b.score - a.score);
+      return scored.filter((s) => s.candidate.index !== tile.candidateIndex).slice(0, 8);
+    },
+    [settings],
+  );
+
+  const mutateTile = useCallback(
+    (tileId: string, fn: (t: MosaicTile) => MosaicTile) => {
+      setMosaic((m) =>
+        m ? { ...m, tiles: m.tiles.map((t) => (t.id === tileId ? fn(t) : t)) } : m,
+      );
+    },
+    [],
+  );
+
+  const replaceTile = useCallback(
+    (tileId: string, candidateIndex: number) => {
+      const cand = browserEngine.candidates[candidateIndex];
+      if (!cand) return;
+      const bmp = targetBmp.current;
+      mutateTile(tileId, (t) => {
+        let parts = {
+          similarity: t.similarityScore,
+          brightness: t.brightnessScore,
+          color: t.colorScore,
+          structure: t.structureScore,
+        };
+        if (bmp) {
+          const cell = describeRegion(
+            bmp,
+            t.column / settings.columns,
+            t.row / settings.rows,
+            1 / settings.columns,
+            1 / settings.rows,
+          );
+          parts = scoreFeatures(cell, cand.features, weightsForAbstraction(settings.abstraction));
+        }
+        return {
+          ...t,
+          sourceImageId: cand.sourceId,
+          candidateIndex: cand.index,
+          cropX: cand.x,
+          cropY: cand.y,
+          cropWidth: cand.w,
+          cropHeight: cand.h,
+          scale: cand.scale,
+          similarityScore: parts.similarity,
+          brightnessScore: parts.brightness,
+          colorScore: parts.color,
+          structureScore: parts.structure,
+        };
+      });
+    },
+    [mutateTile, settings.abstraction, settings.columns, settings.rows],
+  );
+
+  const rotateTile = useCallback(
+    (tileId: string) =>
+      mutateTile(tileId, (t) => ({
+        ...t,
+        rotation: (((t.rotation + 90) % 360) as 0 | 90 | 180 | 270),
+      })),
+    [mutateTile],
+  );
+
+  const toggleLock = useCallback(
+    (tileId: string) => mutateTile(tileId, (t) => ({ ...t, locked: !t.locked })),
+    [mutateTile],
+  );
+
+  const addUploads = useCallback(async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    const added: SourceImage[] = [];
+    for (const file of list) {
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type)) continue;
+      const url = URL.createObjectURL(file);
+      const el = await loadImage(url);
+      added.push({
+        id: `UP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        name: file.name.replace(/\.[^.]+$/, ""),
+        url,
+        wavelength: "rgb",
+        photographer: "You",
+        tags: [],
+        enabled: true,
+        origin: "upload",
+        width: el.naturalWidth,
+        height: el.naturalHeight,
+        license: "private",
+      });
+    }
+    if (added.length) setImages((prev) => [...prev, ...added]);
+  }, []);
+
+  const value: StudioValue = {
+    project,
+    ready: !!project,
+    loadingDemo,
+    images,
+    target,
+    sourcePool,
+    settings,
+    mosaic,
+    generating,
+    progress,
+    selectedTileId,
+    engineMode: browserEngine.mode,
+    openDemo,
+    patchSettings,
+    setTarget: (id) => setProject((p) => (p ? { ...p, targetId: id } : p)),
+    toggleImage: (id, enabled) =>
+      setImages((prev) => prev.map((i) => (i.id === id ? { ...i, enabled } : i))),
+    updateImage: (id, patch) =>
+      setImages((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i))),
+    removeImage: (id) => setImages((prev) => prev.filter((i) => i.id !== id)),
+    addUploads,
+    generate,
+    newSeed: () =>
+      setSettings((s) => (s.seedLocked ? s : { ...s, seed: Math.floor(Math.random() * 999999) })),
+    selectTile: setSelectedTileId,
+    imageById: (id) => images.find((i) => i.id === id),
+    suggest,
+    replaceTile,
+    rotateTile,
+    toggleLock,
+  };
+
+  return <StudioContext.Provider value={value}>{children}</StudioContext.Provider>;
+}
+
+export function useStudio() {
+  const ctx = useContext(StudioContext);
+  if (!ctx) throw new Error("useStudio must be used inside StudioProvider");
+  return ctx;
+}
