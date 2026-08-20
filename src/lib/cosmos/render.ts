@@ -123,20 +123,20 @@ export async function renderAssemblyMap(
 
   for (const tile of mosaic.tiles) {
     const x = tile.column * cell;
-    const y = tile.row * cell;
+    const y = tile.row * cellH;
     const isHighlight = highlightSourceId && tile.sourceImageId === highlightSourceId;
     if (isHighlight) {
       ctx.fillStyle = "rgba(240,182,74,0.28)";
-      ctx.fillRect(x, y, cell, cell);
+      ctx.fillRect(x, y, cell, cellH);
     }
     ctx.strokeStyle = isHighlight ? "rgba(240,182,74,0.9)" : "rgba(160,180,205,0.35)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+    ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cellH - 1);
     ctx.fillStyle = isHighlight ? "#f6d79c" : "rgba(226,235,245,0.92)";
-    ctx.fillText(tile.id, x + cell / 2, y + cell / 2);
+    ctx.fillText(tile.id, x + cell / 2, y + cellH / 2);
     ctx.fillStyle = "rgba(160,180,205,0.75)";
     ctx.font = `400 ${Math.round(cell * 0.15)}px "IBM Plex Mono", monospace`;
-    ctx.fillText(tile.sourceImageId, x + cell / 2, y + cell * 0.78);
+    ctx.fillText(tile.sourceImageId, x + cell / 2, y + cellH * 0.78);
     ctx.font = `500 ${Math.round(cell * 0.24)}px "IBM Plex Mono", monospace`;
   }
 }
