@@ -1,4 +1,9 @@
 import {
+  cellImportance,
+  computeVirtualTargetLayout,
+  describeVirtualTargetCell,
+} from "./composition";
+import {
   type CandidateCrop,
   type EngineProgress,
   type ImageFeatures,
