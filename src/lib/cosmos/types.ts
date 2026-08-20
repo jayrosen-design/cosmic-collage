@@ -102,6 +102,20 @@ export interface CandidateCrop {
   features: ImageFeatures;
 }
 
+/** Provenance of an AI Alignment adjustment. Never replaces photographic credit. */
+export interface AiAdjustment {
+  changed: boolean;
+  reviewed: boolean;
+  previousCandidateIndex?: number;
+  previousSourceImageId?: string;
+  previousRotation?: 0 | 90 | 180 | 270;
+  previousSimilarityScore?: number;
+  previousStructureScore?: number;
+  previousBrightnessScore?: number;
+  reason?: string;
+  confidence?: number;
+}
+
 export interface MosaicTile {
   id: string;
   row: number;
@@ -121,7 +135,10 @@ export interface MosaicTile {
   locked: boolean;
   /** Candidate indexes offered in the Tile Inspector. */
   alternatives: number[];
+  /** Present only on tiles reviewed by AI Alignment. */
+  aiAdjustment?: AiAdjustment;
 }
+
 
 export interface MosaicSettings {
   columns: number;
