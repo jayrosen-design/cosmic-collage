@@ -331,24 +331,28 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     const added: SourceImage[] = [];
     for (const file of list) {
       if (!/^image\/(jpeg|png|webp)$/.test(file.type)) continue;
-      const url = URL.createObjectURL(file);
-      const el = await loadImage(url);
+      const stored = await fileToStoredImage(file);
+      if (!stored) continue;
       added.push({
         id: `UP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         name: file.name.replace(/\.[^.]+$/, ""),
-        url,
+        url: stored.url,
         wavelength: "rgb",
         photographer: "You",
         tags: [],
         enabled: true,
         origin: "upload",
-        width: el.naturalWidth,
-        height: el.naturalHeight,
+        width: stored.width,
+        height: stored.height,
         license: "private",
       });
     }
-    if (added.length) setImages((prev) => [...prev, ...added]);
+    if (added.length) {
+      saveUploads(added);
+      setImages((prev) => [...prev, ...added]);
+    }
   }, []);
+
 
   const value: StudioValue = {
     project,
