@@ -244,9 +244,75 @@ export function proxiedImageUrl(originalUrl: string): string {
   return `${IMAGE_PROXY}?url=${encodeURIComponent(originalUrl)}`;
 }
 
+/* --------------------------------------------------- resilient image load */
+
+function tryLoadImage(url: string, cors: boolean): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (cors) img.crossOrigin = "anonymous";
+    img.onload = () => (img.naturalWidth > 0 ? resolve(img) : reject(new Error("empty image")));
+    img.onerror = () => reject(new Error(`Could not load image: ${url}`));
+    img.src = url;
+  });
+}
+
+/** True when the browser will let the engine read this image's pixels. */
+function pixelsReadable(img: HTMLImageElement): boolean {
+  try {
+    const c = document.createElement("canvas");
+    c.width = 2;
+    c.height = 2;
+    const ctx = c.getContext("2d");
+    if (!ctx) return false;
+    ctx.drawImage(img, 0, 0, 2, 2);
+    ctx.getImageData(0, 0, 1, 1);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface LoadedAstroImage {
+  el: HTMLImageElement;
+  /** URL that actually worked — use this as the SourceImage url */
+  url: string;
+  /** whether the reconstruction engine can analyse this photograph */
+  readable: boolean;
+}
+
+/**
+ * Loads one Astro Aperture photograph the most capable way available:
+ * same-origin proxy (analysable) → direct with CORS (analysable) →
+ * direct without CORS (display only). Environments where the proxy is blocked
+ * by the WordPress host's WAF therefore still work.
+ */
+export async function loadAstroApertureImage(image: SourceImage): Promise<LoadedAstroImage> {
+  const original = image.sourceOriginalUrl ?? image.url;
+  const proxied = `${IMAGE_PROXY}?url=${encodeURIComponent(original)}`;
+  const attempts: Array<[string, boolean]> = [
+    [proxied, true],
+    [original, true],
+    [original, false],
+  ];
+
+  let lastError: unknown;
+  for (const [url, cors] of attempts) {
+    try {
+      const el = await tryLoadImage(url, cors);
+      return { el, url, readable: cors ? pixelsReadable(el) : false };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new AstroApertureError(`Could not load photograph: ${original}`);
+}
+
 export function postPageUrl(post: AstroPost): string {
   return `${POST_BASE}/${post.slug}/`;
 }
+
 
 /* ------------------------------------------------------------- metadata */
 
