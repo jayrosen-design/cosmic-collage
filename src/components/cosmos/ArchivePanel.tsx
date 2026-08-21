@@ -1,11 +1,18 @@
 import { useMemo, useRef, useState } from "react";
-import { Search, Upload, Target, Trash2 } from "lucide-react";
+import { Search, Upload, Target, Trash2, Telescope, ExternalLink } from "lucide-react";
 import { useStudio } from "@/lib/cosmos/store";
 import { ARCHIVE_FILTERS, WAVELENGTH_LABEL, type ArchiveFilter, type SourceImage } from "@/lib/cosmos/types";
+import { AstroApertureBrowser } from "./AstroApertureBrowser";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const ORIGIN_LABEL: Record<SourceImage["origin"], string> = {
+  demo: "NASA",
+  upload: "Upload",
+  "astro-aperture": "Astro Aperture",
+};
 
 function matchesFilter(img: SourceImage, filter: ArchiveFilter) {
   if (filter === "All") return true;
@@ -29,6 +36,8 @@ export function ArchivePanel({ dense = true }: { dense?: boolean }) {
   const { images, target, toggleImage, setTarget, removeImage, addUploads, updateImage } = useStudio();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ArchiveFilter>("All");
+  const [origin, setOrigin] = useState<"all" | SourceImage["origin"]>("all");
+  const [browserOpen, setBrowserOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const visible = useMemo(
@@ -36,13 +45,20 @@ export function ArchivePanel({ dense = true }: { dense?: boolean }) {
       images.filter(
         (i) =>
           matchesFilter(i, filter) &&
+          (origin === "all" || i.origin === origin) &&
           (query.trim() === "" ||
-            `${i.name} ${i.nasaId ?? ""} ${i.mission ?? ""} ${i.tags.join(" ")}`
+            `${i.name} ${i.nasaId ?? ""} ${i.mission ?? ""} ${i.photographer ?? ""} ${i.tags.join(" ")}`
               .toLowerCase()
               .includes(query.toLowerCase())),
       ),
-    [images, filter, query],
+    [images, filter, origin, query],
   );
+
+  const originCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const i of images) counts[i.origin] = (counts[i.origin] ?? 0) + 1;
+    return counts;
+  }, [images]);
 
   return (
     <div className="flex h-full flex-col">
@@ -77,6 +93,23 @@ export function ArchivePanel({ dense = true }: { dense?: boolean }) {
             </button>
           ))}
         </div>
+        <div className="flex flex-wrap gap-1">
+          {(["all", "demo", "astro-aperture", "upload"] as const).map((o) => (
+            <button
+              key={o}
+              onClick={() => setOrigin(o)}
+              className={cn(
+                "rounded-sm border px-1.5 py-0.5 font-mono text-[10px] tracking-wide uppercase transition-colors",
+                origin === o
+                  ? "border-amber/60 bg-amber/10 text-foreground"
+                  : "border-border text-muted-foreground hover:border-border-strong hover:text-foreground",
+              )}
+            >
+              {o === "all" ? "All sources" : ORIGIN_LABEL[o]}
+              {o !== "all" ? ` ${originCounts[o] ?? 0}` : ""}
+            </button>
+          ))}
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -85,6 +118,15 @@ export function ArchivePanel({ dense = true }: { dense?: boolean }) {
         >
           <Upload className="size-3.5" /> Add Photos
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2 border-primary/40 bg-background text-xs"
+          onClick={() => setBrowserOpen(true)}
+        >
+          <Telescope className="size-3.5 text-primary" /> Import from Astro Aperture
+        </Button>
+        <AstroApertureBrowser open={browserOpen} onOpenChange={setBrowserOpen} />
         <input
           ref={fileRef}
           type="file"
@@ -131,11 +173,23 @@ export function ArchivePanel({ dense = true }: { dense?: boolean }) {
                     )}
                   </div>
                   <p className="data-mono truncate text-muted-foreground">
-                    {img.nasaId ?? img.photographer ?? "upload"} · {img.mission ?? "personal"}
+                    {img.nasaId ?? img.photographer ?? "upload"} ·{" "}
+                    {img.mission ?? ORIGIN_LABEL[img.origin]}
                   </p>
                   <p className="data-mono truncate text-primary/80">
                     {WAVELENGTH_LABEL[img.wavelength]}
+                    {img.equipment ? ` · ${img.equipment}` : ""}
                   </p>
+                  {img.sourcePageUrl && (
+                    <a
+                      href={img.sourcePageUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="data-mono inline-flex items-center gap-1 truncate text-muted-foreground hover:text-foreground"
+                    >
+                      <ExternalLink className="size-3" /> original observation
+                    </a>
+                  )}
                   <div className="mt-1 flex items-center gap-2">
                     <span
                       className={cn(
@@ -154,7 +208,7 @@ export function ArchivePanel({ dense = true }: { dense?: boolean }) {
                         <Target className="size-3.5" />
                       </button>
                     )}
-                    {img.origin === "upload" && (
+                    {(img.origin === "upload" || img.origin === "astro-aperture") && (
                       <>
                         <button
                           title="Rename"

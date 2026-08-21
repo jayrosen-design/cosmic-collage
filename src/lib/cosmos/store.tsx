@@ -34,6 +34,7 @@ import {
   type AiProgress,
 } from "./ai-engine";
 import { getNavigatorApiKey, NavigatorError } from "./navigator";
+import { AstroApertureError, buildAndromedaDataset } from "./sources/astro-aperture";
 
 
 interface ManifestImage {
@@ -107,12 +108,18 @@ interface StudioValue {
   engineMode: "visual" | "ai";
   activeDemo: string | null;
   openDemo: (slug?: string) => Promise<void>;
+  /** Live Astro Aperture demo — "Andromeda Through the Years". */
+  openAstroApertureDemo: () => Promise<boolean>;
+  liveStatus: string | null;
+  liveError: string | null;
+  dismissLiveError: () => void;
   patchSettings: (p: Partial<MosaicSettings>) => void;
   setTarget: (id: string) => void;
   toggleImage: (id: string, enabled: boolean) => void;
   updateImage: (id: string, patch: Partial<SourceImage>) => void;
   removeImage: (id: string) => void;
   addUploads: (files: FileList | File[]) => Promise<void>;
+  importImages: (images: SourceImage[]) => Promise<void>;
   generate: () => Promise<void>;
   newSeed: () => void;
   selectTile: (id: string | null) => void;
@@ -188,6 +195,8 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   );
 
   const [activeDemo, setActiveDemo] = useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
 
   const openDemo = useCallback(async (slug: string = "andromeda") => {
     if (loadingDemo) return;
@@ -469,6 +478,92 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  /**
+   * Appends photographs imported from an external archive (Astro Aperture).
+   * Existing NASA demo images and personal uploads are preserved; stable IDs
+   * make re-importing the same photograph a no-op. Remote images are loaded
+   * once here so the engine has real pixel dimensions.
+   */
+  const importImages = useCallback(async (incoming: SourceImage[]) => {
+    const existingIds = new Set(images.map((i) => i.id));
+    const seen = new Set<string>();
+    const prepared: SourceImage[] = [];
+    for (const img of incoming) {
+      if (existingIds.has(img.id) || seen.has(img.id)) continue;
+      seen.add(img.id);
+      try {
+        const el = await loadImage(img.url);
+        prepared.push({ ...img, width: el.naturalWidth, height: el.naturalHeight });
+      } catch {
+        // a single unreachable photograph must not fail the whole import
+      }
+    }
+    if (prepared.length) setImages((prev) => [...prev, ...prepared]);
+  }, [images]);
+
+  const openAstroApertureDemo = useCallback(async (): Promise<boolean> => {
+    if (loadingDemo) return false;
+    setLoadingDemo(true);
+    setLiveError(null);
+    setLiveStatus("Connecting to Astro Aperture…");
+    try {
+      const dataset = await buildAndromedaDataset((message) => setLiveStatus(message));
+      const loaded: SourceImage[] = [];
+      const all = [dataset.target, ...dataset.sources];
+      let done = 0;
+      for (const img of all) {
+        try {
+          const el = await loadImage(img.url);
+          loaded.push({ ...img, width: el.naturalWidth, height: el.naturalHeight });
+        } catch {
+          // skip unreachable photographs
+        }
+        done += 1;
+        setLiveStatus(`Processing ${done} of ${all.length} photographs…`);
+      }
+      if (!loaded.some((i) => i.id === dataset.target.id)) {
+        throw new AstroApertureError("The Andromeda target photograph could not be loaded.");
+      }
+      setLiveStatus("Preparing source archive…");
+      setImages([...loaded, ...listUploads()]);
+      setMosaic(null);
+      setSelectedTileId(null);
+      autoRan.current = false;
+      setSettings((s) => ({
+        ...s,
+        abstraction: 0.4,
+        randomness: 0.12,
+        diversity: 0.7,
+        targetScale: 0.72,
+        targetOffsetX: 0.5,
+        targetOffsetY: 0.5,
+        mosaicPadding: true,
+        allowRotation: true,
+      }));
+      setProject({
+        id: "astro-aperture-andromeda",
+        name: "Andromeda Through the Years",
+        object: "M31 - Andromeda Galaxy (Astro Aperture)",
+        targetId: dataset.target.id,
+        createdAt: Date.now(),
+      });
+      setActiveDemo("astro-andromeda");
+      return true;
+    } catch (err) {
+      setLiveError(
+        err instanceof AstroApertureError
+          ? `${err.message} The bundled NASA demos are still available.`
+          : "Astro Aperture could not be reached. The bundled NASA demos are still available.",
+      );
+      return false;
+    } finally {
+      setLoadingDemo(false);
+      setLiveStatus(null);
+    }
+  }, [loadingDemo]);
+
+
+
 
   const value: StudioValue = {
     project,
@@ -485,6 +580,11 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     engineMode: mosaic?.engine ?? browserEngine.mode,
     activeDemo,
     openDemo,
+    openAstroApertureDemo,
+    liveStatus,
+    liveError,
+    dismissLiveError: () => setLiveError(null),
+    importImages,
     patchSettings,
     setTarget: (id) => setProject((p) => (p ? { ...p, targetId: id } : p)),
     toggleImage: (id, enabled) =>
