@@ -28,7 +28,16 @@ export const Route = createFileRoute("/api/astro-aperture/graphql")({
         try {
           const upstream = await fetch(UPSTREAM, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              // WordPress sits behind Cloudflare, which rejects header-less
+              // server-to-server requests
+              "User-Agent":
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+              Referer: "https://jayrosen.design/",
+              Origin: "https://jayrosen.design",
+            },
             body: JSON.stringify({ query, variables: payload.variables ?? null }),
           });
           const text = await upstream.text();
