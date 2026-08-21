@@ -15,6 +15,7 @@ import type { SourceImage, Wavelength } from "../types";
 
 const GRAPHQL_ENDPOINT = "/api/astro-aperture/graphql";
 const IMAGE_PROXY = "/api/astro-aperture/image";
+const DIRECT_ENDPOINT = "https://jayrosen.design/graphql";
 const POST_BASE = "https://jayrosen.design/astrophotography";
 
 export const ASTRO_CATEGORY_ID = 559;
@@ -105,24 +106,64 @@ export const GET_SINGLE_POST = `
   }
 `;
 
+/**
+ * Transport selection. The same-origin proxy is preferred (it is the only way
+ * to read remote pixels into a canvas), but the WordPress host sits behind a
+ * WAF that can reject server-to-server requests from hosting IPs. When the
+ * proxy cannot reach it we fall back to the browser's own connection, which
+ * still renders photographs even though canvas analysis then relies on the
+ * host's CORS headers.
+ */
+type Transport = "proxy" | "direct";
+let transport: Transport = "proxy";
+
+export function astroApertureTransport(): Transport {
+  return transport;
+}
+
+async function postGraphQL(
+  endpoint: string,
+  query: string,
+  variables?: Record<string, unknown>,
+): Promise<unknown> {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw new AstroApertureError(`Astro Aperture responded ${res.status}.`);
+  return res.json();
+}
+
 async function fetchGraphQL<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(GRAPHQL_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables }),
-    });
-  } catch {
-    throw new AstroApertureError("Astro Aperture could not be reached.");
+  const order: Array<[Transport, string]> =
+    transport === "direct"
+      ? [["direct", DIRECT_ENDPOINT]]
+      : [
+          ["proxy", GRAPHQL_ENDPOINT],
+          ["direct", DIRECT_ENDPOINT],
+        ];
+
+  let lastError: unknown;
+  for (const [mode, endpoint] of order) {
+    try {
+      const json = (await postGraphQL(endpoint, query, variables)) as {
+        data?: T;
+        errors?: Array<{ message?: string }>;
+      };
+      if (json.errors?.length) {
+        throw new AstroApertureError(json.errors[0]?.message ?? "Astro Aperture query failed.");
+      }
+      if (!json.data) throw new AstroApertureError("Astro Aperture returned no data.");
+      transport = mode;
+      return json.data;
+    } catch (err) {
+      lastError = err;
+    }
   }
-  if (!res.ok) throw new AstroApertureError("Astro Aperture could not be reached.");
-  const json = (await res.json()) as { data?: T; errors?: Array<{ message?: string }> };
-  if (json.errors?.length) {
-    throw new AstroApertureError(json.errors[0]?.message ?? "Astro Aperture query failed.");
-  }
-  if (!json.data) throw new AstroApertureError("Astro Aperture returned no data.");
-  return json.data;
+  throw lastError instanceof AstroApertureError
+    ? lastError
+    : new AstroApertureError("Astro Aperture could not be reached.");
 }
 
 /* ------------------------------------------------------- media discovery */
@@ -199,6 +240,7 @@ export function uniquePostImages(post: AstroPost): string[] {
 
 /** Same-origin URL used for canvas analysis. */
 export function proxiedImageUrl(originalUrl: string): string {
+  if (transport === "direct") return originalUrl;
   return `${IMAGE_PROXY}?url=${encodeURIComponent(originalUrl)}`;
 }
 
