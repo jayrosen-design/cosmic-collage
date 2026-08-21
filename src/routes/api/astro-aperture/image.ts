@@ -35,7 +35,15 @@ export const Route = createFileRoute("/api/astro-aperture/image")({
         let upstream: Response;
         try {
           upstream = await fetch(target.toString(), {
-            headers: { Accept: "image/*" },
+            headers: {
+              Accept: "image/*",
+              "User-Agent":
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+              Referer: "https://jayrosen.design/",
+              // Identifies this instrument so the archive host can allow it
+              // through its firewall (Cloudflare WAF skip rule on this header).
+              "X-Cosmic-Collage": "1",
+            },
             redirect: "manual",
           });
         } catch {

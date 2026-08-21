@@ -548,7 +548,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       if (!loaded.some((i) => i.id === dataset.target.id)) {
         throw new AstroApertureError(
           unreadable > 0
-            ? "The Andromeda photographs load for viewing, but this browser is not allowed to read their pixels, so they cannot be reconstructed."
+            ? "The Andromeda photographs display, but jayrosen.design does not allow pixel access: the image proxy is blocked by the site firewall and the images are served without CORS headers. Allow requests carrying the X-Cosmic-Collage header in Cloudflare, or send Access-Control-Allow-Origin on /wp-content/uploads/."
             : "The Andromeda target photograph could not be loaded.",
         );
       }
