@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Loader2, RefreshCw, Search, Telescope } from "lucide-react";
 import {
   ASTRO_CATEGORIES,
@@ -41,8 +41,10 @@ export function AstroApertureBrowser({ open, onOpenChange }: Props) {
   const [category, setCategory] = useState<AstroCategory>("All");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
+  const attempted = useRef(false);
 
   const load = useCallback(async (force = false) => {
+    attempted.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -60,8 +62,8 @@ export function AstroApertureBrowser({ open, onOpenChange }: Props) {
   }, []);
 
   useEffect(() => {
-    if (open && posts.length === 0 && !loading) void load();
-  }, [open, posts.length, loading, load]);
+    if (open && !attempted.current && posts.length === 0) void load();
+  }, [open, posts.length, load]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
