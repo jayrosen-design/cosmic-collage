@@ -57,9 +57,17 @@ export interface SourceImage {
   license?: "private" | "community" | "public-remix" | "commercial-remix";
   tags: string[];
   enabled: boolean;
-  origin: "demo" | "upload";
+  origin: "demo" | "upload" | "astro-aperture";
   width: number;
   height: number;
+  /* ---- external archive provenance (never overwrites photographic credit) ---- */
+  sourceProvider?: "nasa" | "astro-aperture" | "upload";
+  /** canonical page the photograph was published on */
+  sourcePageUrl?: string;
+  /** original remote file URL, before same-origin proxying */
+  sourceOriginalUrl?: string;
+  sourcePostId?: string;
+  sourcePostSlug?: string;
 }
 
 /** Descriptors computed from a low-resolution analysis representation. */

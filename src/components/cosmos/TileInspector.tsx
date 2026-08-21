@@ -138,6 +138,23 @@ export function TileInspector() {
             <p className="data-mono text-muted-foreground">
               Credit: {source?.credit ?? source?.photographer ?? "—"}
             </p>
+            {source?.captureDate && source.origin === "astro-aperture" && (
+              <p className="data-mono text-muted-foreground">
+                Captured {new Date(source.captureDate).toLocaleDateString()}
+                {source.equipment ? ` · ${source.equipment}` : ""}
+                {source.filters ? ` · ${source.filters}` : ""}
+              </p>
+            )}
+            {source?.sourcePageUrl && (
+              <a
+                href={source.sourcePageUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="data-mono block truncate text-primary underline-offset-2 hover:underline"
+              >
+                Astro Aperture — original observation
+              </a>
+            )}
             {tile.aiAdjustment && (
               <div className="mt-1 space-y-0.5 rounded-sm border border-primary/30 bg-primary/5 px-2 py-1">
                 <p className="label-xs text-primary">

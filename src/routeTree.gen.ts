@@ -16,6 +16,8 @@ import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as PhysicalIdRouteImport } from './routes/physical.$id'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
+import { Route as ApiAstroApertureGraphqlRouteImport } from './routes/api/astro-aperture/graphql'
+import { Route as ApiAstroApertureImageRouteImport } from './routes/api/astro-aperture/image'
 import { Route as ApiNavigatorSplatRouteImport } from './routes/api/navigator.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -53,6 +55,16 @@ const ProjectIdRoute = ProjectIdRouteImport.update({
   path: '/project/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAstroApertureGraphqlRoute = ApiAstroApertureGraphqlRouteImport.update({
+  id: '/api/astro-aperture/graphql',
+  path: '/api/astro-aperture/graphql',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAstroApertureImageRoute = ApiAstroApertureImageRouteImport.update({
+  id: '/api/astro-aperture/image',
+  path: '/api/astro-aperture/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNavigatorSplatRoute = ApiNavigatorSplatRouteImport.update({
   id: '/api/navigator/$',
   path: '/api/navigator/$',
@@ -67,6 +79,8 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
+  '/api/astro-aperture/graphql': typeof ApiAstroApertureGraphqlRoute
+  '/api/astro-aperture/image': typeof ApiAstroApertureImageRoute
   '/api/navigator/$': typeof ApiNavigatorSplatRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +91,8 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
+  '/api/astro-aperture/graphql': typeof ApiAstroApertureGraphqlRoute
+  '/api/astro-aperture/image': typeof ApiAstroApertureImageRoute
   '/api/navigator/$': typeof ApiNavigatorSplatRoute
 }
 export interface FileRoutesById {
@@ -88,6 +104,8 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/physical/$id': typeof PhysicalIdRoute
   '/project/$id': typeof ProjectIdRoute
+  '/api/astro-aperture/graphql': typeof ApiAstroApertureGraphqlRoute
+  '/api/astro-aperture/image': typeof ApiAstroApertureImageRoute
   '/api/navigator/$': typeof ApiNavigatorSplatRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +118,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/physical/$id'
     | '/project/$id'
+    | '/api/astro-aperture/graphql'
+    | '/api/astro-aperture/image'
     | '/api/navigator/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +130,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/physical/$id'
     | '/project/$id'
+    | '/api/astro-aperture/graphql'
+    | '/api/astro-aperture/image'
     | '/api/navigator/$'
   id:
     | '__root__'
@@ -120,6 +142,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/physical/$id'
     | '/project/$id'
+    | '/api/astro-aperture/graphql'
+    | '/api/astro-aperture/image'
     | '/api/navigator/$'
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +155,8 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   PhysicalIdRoute: typeof PhysicalIdRoute
   ProjectIdRoute: typeof ProjectIdRoute
+  ApiAstroApertureGraphqlRoute: typeof ApiAstroApertureGraphqlRoute
+  ApiAstroApertureImageRoute: typeof ApiAstroApertureImageRoute
   ApiNavigatorSplatRoute: typeof ApiNavigatorSplatRoute
 }
 
@@ -185,6 +211,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/astro-aperture/graphql': {
+      id: '/api/astro-aperture/graphql'
+      path: '/api/astro-aperture/graphql'
+      fullPath: '/api/astro-aperture/graphql'
+      preLoaderRoute: typeof ApiAstroApertureGraphqlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/astro-aperture/image': {
+      id: '/api/astro-aperture/image'
+      path: '/api/astro-aperture/image'
+      fullPath: '/api/astro-aperture/image'
+      preLoaderRoute: typeof ApiAstroApertureImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/navigator/$': {
       id: '/api/navigator/$'
       path: '/api/navigator/$'
@@ -203,6 +243,8 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   PhysicalIdRoute: PhysicalIdRoute,
   ProjectIdRoute: ProjectIdRoute,
+  ApiAstroApertureGraphqlRoute: ApiAstroApertureGraphqlRoute,
+  ApiAstroApertureImageRoute: ApiAstroApertureImageRoute,
   ApiNavigatorSplatRoute: ApiNavigatorSplatRoute,
 }
 export const routeTree = rootRouteImport

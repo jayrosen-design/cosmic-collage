@@ -51,7 +51,17 @@ interface DemoIndexEntry {
 }
 
 function GalleryPage() {
-  const { activeDemo, openDemo, mosaic, settings, patchSettings } = useStudio();
+  const {
+    activeDemo,
+    openDemo,
+    openAstroApertureDemo,
+    liveStatus,
+    liveError,
+    dismissLiveError,
+    mosaic,
+    settings,
+    patchSettings,
+  } = useStudio();
   const navigate = useNavigate();
   const [entries, setEntries] = useState<GalleryEntry[]>([]);
   const [demos, setDemos] = useState<DemoIndexEntry[]>([]);
@@ -86,6 +96,16 @@ function GalleryPage() {
     void navigate({ to: "/studio" });
   };
 
+  const openLive = async () => {
+    setOpening("astro-andromeda");
+    try {
+      const ok = await openAstroApertureDemo();
+      if (ok) void navigate({ to: "/studio" });
+    } finally {
+      setOpening(null);
+    }
+  };
+
   return (
     <StudioShell>
       <div className="h-full overflow-y-auto">
@@ -96,6 +116,18 @@ function GalleryPage() {
             every other card is a collage you saved from the studio, stored in this browser with the
             exact settings used to produce it.
           </p>
+
+          {liveError && (
+            <div className="mt-6 flex items-start justify-between gap-3 rounded-sm border border-destructive/40 bg-destructive/10 p-3 text-xs text-foreground">
+              <p>{liveError}</p>
+              <button
+                onClick={dismissLiveError}
+                className="font-mono text-[10px] tracking-wide uppercase text-muted-foreground hover:text-foreground"
+              >
+                dismiss
+              </button>
+            </div>
+          )}
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {demos.map((d) => (
@@ -142,6 +174,39 @@ function GalleryPage() {
               </article>
             ))}
 
+
+            <article className="overflow-hidden rounded-sm border border-primary/40 bg-surface">
+              <div className="flex aspect-[5/3] items-center justify-center bg-background px-6 text-center">
+                <p className="font-display text-sm text-primary">
+                  Andromeda Through the Years
+                </p>
+              </div>
+              <div className="space-y-3 p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="font-display text-sm text-foreground">Astro Aperture — Live</h2>
+                  <span className="rounded-sm border border-primary/50 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase text-primary">
+                    {activeDemo === "astro-andromeda" ? "Active" : "Live"}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Built at load time from Jay Rosen&rsquo;s own Andromeda observations on
+                  jayrosen.design — the newest M31 photograph becomes the target, earlier ones
+                  become the source material.
+                </p>
+                <dl className="grid grid-cols-3 gap-2">
+                  <Meta label="Object" value="M31" />
+                  <Meta label="Source" value="Astro Aperture" />
+                  <Meta label="Images" value="live" />
+                </dl>
+                <Button
+                  disabled={opening !== null}
+                  onClick={() => void openLive()}
+                  className="w-full rounded-sm font-mono text-xs tracking-wider uppercase"
+                >
+                  {opening === "astro-andromeda" ? (liveStatus ?? "Loading…") : "Open in Studio"}
+                </Button>
+              </div>
+            </article>
 
             {entries.map((e) => (
               <article key={e.id} className="overflow-hidden rounded-sm border border-border bg-surface">
