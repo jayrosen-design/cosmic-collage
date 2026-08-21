@@ -34,7 +34,11 @@ import {
   type AiProgress,
 } from "./ai-engine";
 import { getNavigatorApiKey, NavigatorError } from "./navigator";
-import { AstroApertureError, buildAndromedaDataset } from "./sources/astro-aperture";
+import {
+  AstroApertureError,
+  buildAndromedaDataset,
+  loadAstroApertureImage,
+} from "./sources/astro-aperture";
 
 
 interface ManifestImage {
@@ -492,8 +496,18 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       if (existingIds.has(img.id) || seen.has(img.id)) continue;
       seen.add(img.id);
       try {
-        const el = await loadImage(img.url);
-        prepared.push({ ...img, width: el.naturalWidth, height: el.naturalHeight });
+        if (img.origin === "astro-aperture") {
+          const res = await loadAstroApertureImage(img);
+          prepared.push({
+            ...img,
+            url: res.url,
+            width: res.el.naturalWidth,
+            height: res.el.naturalHeight,
+          });
+        } else {
+          const el = await loadImage(img.url);
+          prepared.push({ ...img, width: el.naturalWidth, height: el.naturalHeight });
+        }
       } catch {
         // a single unreachable photograph must not fail the whole import
       }
