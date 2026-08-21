@@ -34,7 +34,11 @@ import {
   type AiProgress,
 } from "./ai-engine";
 import { getNavigatorApiKey, NavigatorError } from "./navigator";
-import { AstroApertureError, buildAndromedaDataset } from "./sources/astro-aperture";
+import {
+  AstroApertureError,
+  buildAndromedaDataset,
+  loadAstroApertureImage,
+} from "./sources/astro-aperture";
 
 
 interface ManifestImage {
@@ -492,8 +496,18 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       if (existingIds.has(img.id) || seen.has(img.id)) continue;
       seen.add(img.id);
       try {
-        const el = await loadImage(img.url);
-        prepared.push({ ...img, width: el.naturalWidth, height: el.naturalHeight });
+        if (img.origin === "astro-aperture") {
+          const res = await loadAstroApertureImage(img);
+          prepared.push({
+            ...img,
+            url: res.url,
+            width: res.el.naturalWidth,
+            height: res.el.naturalHeight,
+          });
+        } else {
+          const el = await loadImage(img.url);
+          prepared.push({ ...img, width: el.naturalWidth, height: el.naturalHeight });
+        }
       } catch {
         // a single unreachable photograph must not fail the whole import
       }
@@ -511,10 +525,20 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       const loaded: SourceImage[] = [];
       const all = [dataset.target, ...dataset.sources];
       let done = 0;
+      let unreadable = 0;
       for (const img of all) {
         try {
-          const el = await loadImage(img.url);
-          loaded.push({ ...img, width: el.naturalWidth, height: el.naturalHeight });
+          const res = await loadAstroApertureImage(img);
+          if (!res.readable) {
+            unreadable += 1;
+            continue;
+          }
+          loaded.push({
+            ...img,
+            url: res.url,
+            width: res.el.naturalWidth,
+            height: res.el.naturalHeight,
+          });
         } catch {
           // skip unreachable photographs
         }
@@ -522,8 +546,13 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         setLiveStatus(`Processing ${done} of ${all.length} photographs…`);
       }
       if (!loaded.some((i) => i.id === dataset.target.id)) {
-        throw new AstroApertureError("The Andromeda target photograph could not be loaded.");
+        throw new AstroApertureError(
+          unreadable > 0
+            ? "The Andromeda photographs load for viewing, but this browser is not allowed to read their pixels, so they cannot be reconstructed."
+            : "The Andromeda target photograph could not be loaded.",
+        );
       }
+
       setLiveStatus("Preparing source archive…");
       setImages([...loaded, ...listUploads()]);
       setMosaic(null);
