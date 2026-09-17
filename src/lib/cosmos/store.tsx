@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { computeVirtualTargetLayout, describeVirtualTargetCell } from "./composition";
+import { computeVirtualTargetLayout, describeEndlessTargetCell, describeVirtualTargetCell } from "./composition";
 import {
   browserEngine,
   loadImage,
@@ -63,6 +63,7 @@ interface Manifest {
 export const DEFAULT_SETTINGS: MosaicSettings = {
   columns: 20,
   rows: 12,
+  endlessCanvas: false,
   tileGap: 1,
   tileBorder: 0,
   aspectMode: "target",
@@ -125,6 +126,8 @@ interface StudioValue {
   addUploads: (files: FileList | File[]) => Promise<void>;
   importImages: (images: SourceImage[]) => Promise<void>;
   generate: () => Promise<void>;
+  ensureWorldCells: (bounds: { minRow: number; maxRow: number; minColumn: number; maxColumn: number }) => Promise<void>;
+  expandingCanvas: boolean;
   newSeed: () => void;
   selectTile: (id: string | null) => void;
   imageById: (id: string) => SourceImage | undefined;
@@ -172,6 +175,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<MosaicSettings>(DEFAULT_SETTINGS);
   const [mosaic, setMosaic] = useState<Mosaic | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [expandingCanvas, setExpandingCanvas] = useState(false);
   const [progress, setProgress] = useState<EngineProgress | null>(null);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
@@ -278,6 +282,54 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       setProgress(null);
     }
   }, [target, images, settings, generating, mosaic]);
+
+  const worldQueue = useRef<Promise<void>>(Promise.resolve());
+  const ensureWorldCells = useCallback(async (bounds: { minRow: number; maxRow: number; minColumn: number; maxColumn: number }) => {
+    if (!target || !mosaic || !settings.endlessCanvas || browserEngine.candidates.length === 0) return;
+    const existing = new Set(mosaic.tiles.map((t) => `${t.row}:${t.column}`));
+    const coordinates: Array<{ row: number; column: number }> = [];
+    for (let row = bounds.minRow; row <= bounds.maxRow; row++) {
+      for (let column = bounds.minColumn; column <= bounds.maxColumn; column++) {
+        if (!existing.has(`${row}:${column}`)) coordinates.push({ row, column });
+      }
+    }
+    if (coordinates.length === 0) return;
+    worldQueue.current = worldQueue.current.then(async () => {
+      setExpandingCanvas(true);
+      try {
+        const bmp = targetBmp.current;
+        const layout = layoutRef.current ?? mosaic.layout;
+        if (!bmp || !layout) return;
+        const latestKeys = new Set<string>();
+        setMosaic((current) => {
+          for (const tile of current?.tiles ?? []) latestKeys.add(`${tile.row}:${tile.column}`);
+          return current;
+        });
+        const missing = coordinates.filter((c) => !latestKeys.has(`${c.row}:${c.column}`));
+        if (missing.length === 0) return;
+        const additions = await browserEngine.generateWorldCells(settings, bmp, layout, missing);
+        setMosaic((current) => {
+          if (!current) return current;
+          const keys = new Set(current.tiles.map((t) => `${t.row}:${t.column}`));
+          const unique = additions.filter((t) => !keys.has(`${t.row}:${t.column}`));
+          const all = [...current.tiles, ...unique];
+          return {
+            ...current,
+            tiles: all,
+            generatedBounds: {
+              minRow: Math.min(...all.map((t) => t.row)),
+              maxRow: Math.max(...all.map((t) => t.row)),
+              minColumn: Math.min(...all.map((t) => t.column)),
+              maxColumn: Math.max(...all.map((t) => t.column)),
+            },
+          };
+        });
+      } finally {
+        setExpandingCanvas(false);
+      }
+    });
+    await worldQueue.current;
+  }, [target, mosaic, settings]);
 
   const refreshNavigatorConnection = useCallback(() => {
     setNavigatorConnected(!!getNavigatorApiKey());
@@ -639,6 +691,8 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
 
     addUploads,
     generate,
+    ensureWorldCells,
+    expandingCanvas,
     newSeed: () =>
       setSettings((s) => (s.seedLocked ? s : { ...s, seed: Math.floor(Math.random() * 999999) })),
     selectTile: setSelectedTileId,

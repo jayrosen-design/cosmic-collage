@@ -1,6 +1,7 @@
 import {
   cellImportance,
   computeVirtualTargetLayout,
+  describeEndlessTargetCell,
   describeVirtualTargetCell,
 } from "./composition";
 import {
@@ -361,6 +362,69 @@ export class BrowserAnalysisEngine implements MosaicAnalysisEngine {
     return out;
   }
 
+  /** Deterministically fill newly visible signed world cells from the current candidate pool. */
+  async generateWorldCells(
+    settings: MosaicSettings,
+    targetBmp: AnalysisBitmap,
+    layout: VirtualTargetLayout,
+    coordinates: Array<{ row: number; column: number }>,
+  ): Promise<MosaicTile[]> {
+    const weights = weightsForAbstraction(settings.abstraction);
+    const rotations: Array<0 | 90 | 180 | 270> = settings.allowRotation ? ROTATIONS : [0];
+    const tiles: MosaicTile[] = [];
+    for (let i = 0; i < coordinates.length; i++) {
+      const { row, column } = coordinates[i]!;
+      const hash = Math.imul(row + 104729, 73856093) ^ Math.imul(column + 130363, 19349663);
+      const rng = mulberry32((settings.seed ^ hash) >>> 0);
+      const cell = describeEndlessTargetCell(targetBmp, layout, settings, row, column);
+      const sampleSize = Math.min(this.candidates.length, 260);
+      let best: { candidate: CandidateCrop; rotation: 0 | 90 | 180 | 270; parts: ScoreParts; score: number } | null = null;
+      const alternatives: Array<{ index: number; score: number }> = [];
+      for (let n = 0; n < sampleSize; n++) {
+        const candidate = this.candidates[Math.floor(rng() * this.candidates.length)];
+        if (!candidate) continue;
+        for (const rotation of rotations) {
+          const parts = scoreFeatures(cell.features, this.featuresFor(candidate.index, rotation), weights);
+          const skyPenalty = cell.coverage < 0.5
+            ? Math.max(0, candidate.features.luminance - layout.backgroundFeatures.luminance * 1.7) * 0.8
+            : 0;
+          const score = parts.similarity - skyPenalty + (rng() - 0.5) * settings.randomness * 0.12;
+          alternatives.push({ index: candidate.index, score });
+          if (!best || score > best.score) best = { candidate, rotation, parts, score };
+        }
+      }
+      if (!best) continue;
+      const altIndexes = [...alternatives]
+        .sort((a, b) => b.score - a.score)
+        .map((v) => v.index)
+        .filter((v, index, all) => v !== best?.candidate.index && all.indexOf(v) === index)
+        .slice(0, 8);
+      tiles.push({
+        id: `W${row}_${column}`,
+        row,
+        column,
+        sourceImageId: best.candidate.sourceId,
+        candidateIndex: best.candidate.index,
+        cropX: best.candidate.x,
+        cropY: best.candidate.y,
+        cropWidth: best.candidate.w,
+        cropHeight: best.candidate.h,
+        rotation: best.rotation,
+        scale: best.candidate.scale,
+        similarityScore: best.parts.similarity,
+        brightnessScore: best.parts.brightness,
+        colorScore: best.parts.color,
+        structureScore: best.parts.structure,
+        locked: false,
+        targetCoverage: cell.coverage,
+        alternatives: altIndexes,
+        isOuter: row < 0 || column < 0 || row >= settings.rows || column >= settings.columns,
+      });
+      if (i % 80 === 0) await yieldToUI();
+    }
+    return tiles;
+  }
+
   async generateMosaic(
     settings: MosaicSettings,
     ctx: {
@@ -436,7 +500,9 @@ export class BrowserAnalysisEngine implements MosaicAnalysisEngine {
     let maxEdge = 0.0001;
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        const c = describeVirtualTargetCell(targetBmp, layout, row, col, rows, columns);
+        const c = settings.endlessCanvas
+          ? describeEndlessTargetCell(targetBmp, layout, settings, row, col)
+          : describeVirtualTargetCell(targetBmp, layout, row, col, rows, columns);
         maxContrast = Math.max(maxContrast, c.features.contrast);
         maxEdge = Math.max(maxEdge, c.features.edgeDensity);
         cells.push({ row, column: col, features: c.features, coverage: c.coverage });
@@ -601,6 +667,7 @@ export class BrowserAnalysisEngine implements MosaicAnalysisEngine {
       createdAt: Date.now(),
       engine: "visual",
       layout,
+      generatedBounds: { minRow: 0, maxRow: rows - 1, minColumn: 0, maxColumn: columns - 1 },
     };
   }
 

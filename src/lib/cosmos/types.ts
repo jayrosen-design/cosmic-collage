@@ -148,11 +148,15 @@ export interface MosaicTile {
   alternatives: number[];
   /** Present only on tiles reviewed by AI Alignment. */
   aiAdjustment?: AiAdjustment;
+  /** Tile lies outside the selected center grid in Endless Canvas mode. */
+  isOuter?: boolean;
 }
 
 export interface MosaicSettings {
   columns: number;
   rows: number;
+  /** Generate signed world-grid cells as they enter the viewport. */
+  endlessCanvas: boolean;
   tileGap: number;
   tileBorder: number;
   /**
@@ -210,6 +214,8 @@ export interface Mosaic {
   engine: "visual" | "ai";
   /** composition geometry this mosaic was reconstructed against */
   layout?: VirtualTargetLayout;
+  /** Finite extent generated so far, despite the unbounded world coordinate space. */
+  generatedBounds?: { minRow: number; maxRow: number; minColumn: number; maxColumn: number };
 }
 
 export interface Project {
