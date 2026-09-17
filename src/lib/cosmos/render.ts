@@ -26,10 +26,15 @@ export async function preloadImages(images: SourceImage[]) {
  * (never stretched per-tile); in "square" mode tiles stay square.
  */
 export function mosaicBounds(mosaic: Mosaic) {
-  if (!mosaic.settings.endlessCanvas || mosaic.tiles.length === 0) {
+  const hasOuterTiles = mosaic.tiles.some(
+    (tile) => tile.row < 0 || tile.column < 0 || tile.row >= mosaic.settings.rows || tile.column >= mosaic.settings.columns,
+  );
+  if ((!mosaic.settings.endlessCanvas && !hasOuterTiles) || mosaic.tiles.length === 0) {
     return { minRow: 0, maxRow: mosaic.settings.rows - 1, minColumn: 0, maxColumn: mosaic.settings.columns - 1 };
   }
-  return mosaic.generatedBounds ?? {
+  // Tiles are authoritative while the field is growing. Several queued viewport
+  // expansions can make persisted bounds briefly lag behind the actual tile set.
+  return {
     minRow: Math.min(...mosaic.tiles.map((t) => t.row)),
     maxRow: Math.max(...mosaic.tiles.map((t) => t.row)),
     minColumn: Math.min(...mosaic.tiles.map((t) => t.column)),

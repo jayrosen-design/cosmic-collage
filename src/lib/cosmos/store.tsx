@@ -150,7 +150,15 @@ interface StudioValue {
 }
 
 
-const StudioContext = createContext<StudioValue | null>(null);
+// Preserve one context identity across development hot updates. Without this,
+// providers and consumers can briefly reference different module instances.
+const studioContextKey = "__cosmicCollageStudioContext__";
+const globalContexts = globalThis as typeof globalThis & {
+  [studioContextKey]?: React.Context<StudioValue | null>;
+};
+const StudioContext =
+  globalContexts[studioContextKey] ?? createContext<StudioValue | null>(null);
+globalContexts[studioContextKey] = StudioContext;
 
 function normaliseWavelength(w: string): Wavelength {
   const v = w.toLowerCase();
@@ -255,15 +263,15 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   }, [project, loadingDemo, activeDemo]);
 
   const patchSettings = useCallback((p: Partial<MosaicSettings>) => {
-    setSettings((s) => {
-      if (p.endlessCanvas !== undefined && p.endlessCanvas !== s.endlessCanvas) {
-        setMosaic(null);
-        setSelectedTileId(null);
-        autoRan.current = false;
-      }
-      return { ...s, ...p };
-    });
-  }, []);
+    const changesCanvasMode =
+      p.endlessCanvas !== undefined && p.endlessCanvas !== settings.endlessCanvas;
+    setSettings((s) => ({ ...s, ...p }));
+    if (changesCanvasMode) {
+      setMosaic(null);
+      setSelectedTileId(null);
+      autoRan.current = false;
+    }
+  }, [settings.endlessCanvas]);
 
   const generate = useCallback(async () => {
     if (!target || generating) return;
@@ -324,6 +332,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
           const all = [...current.tiles, ...unique];
           return {
             ...current,
+            settings: { ...current.settings, endlessCanvas: true },
             tiles: all,
             generatedBounds: {
               minRow: Math.min(...all.map((t) => t.row)),

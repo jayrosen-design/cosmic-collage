@@ -247,10 +247,13 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const bounds = mosaic ? mosaicBounds(mosaic) : null;
   const extentColumns = bounds ? bounds.maxColumn - bounds.minColumn + 1 : settings.columns;
   const extentRows = bounds ? bounds.maxRow - bounds.minRow + 1 : settings.rows;
+  const tileAspect = mosaic?.layout
+    ? (mosaic.layout.canvasAspect * settings.rows) / settings.columns
+    : 1;
   const endlessSize = settings.endlessCanvas && mosaic
     ? {
-        width: `${(extentColumns / settings.columns) * 82}%`,
-        height: `${(extentRows / settings.rows) * 82}%`,
+        width: `${extentColumns * 48}px`,
+        height: `${extentRows * (48 / Math.max(0.2, tileAspect))}px`,
       }
     : undefined;
 
@@ -258,6 +261,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
       <div
         ref={viewportRef}
+        data-cosmic-viewport
         onPointerDown={onViewportPointerDown}
         onPointerMove={onViewportPointerMove}
         onPointerUp={endPan}
@@ -301,15 +305,14 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
             ))}
 
           {view === "reconstruction" && (
-            <div className="relative flex items-center justify-center" style={endlessSize}>
+            <div className="relative flex shrink-0 items-center justify-center" style={endlessSize}>
               <canvas
                 ref={canvasRef}
                 onPointerDown={onCanvasPointerDown}
                 onPointerMove={onCanvasPointerMove}
                 onPointerUp={onCanvasPointerUp}
                 className={cn(
-                  canvasClass,
-                  settings.endlessCanvas && "h-full w-full",
+                  settings.endlessCanvas ? "h-full w-full cursor-crosshair" : canvasClass,
                   "transition-opacity",
                   ready ? "opacity-100" : "opacity-40",
                 )}
@@ -338,13 +341,13 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
           )}
 
           {view === "compare" && target && (
-            <div className="relative flex items-center justify-center" style={endlessSize}>
+            <div className="relative flex shrink-0 items-center justify-center" style={endlessSize}>
               <canvas
                 ref={canvasRef}
                 onPointerDown={onCanvasPointerDown}
                 onPointerMove={onCanvasPointerMove}
                 onPointerUp={onCanvasPointerUp}
-                className={cn(canvasClass, settings.endlessCanvas && "h-full w-full")}
+                className={settings.endlessCanvas ? "h-full w-full cursor-crosshair" : canvasClass}
               />
               {/* same VirtualTargetLayout as the reconstruction — never stretched */}
               <canvas
