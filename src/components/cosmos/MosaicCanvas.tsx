@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Minus, Plus, Maximize2 } from "lucide-react";
 import { useStudio } from "@/lib/cosmos/store";
-import { drawVirtualTargetFrame } from "@/lib/cosmos/composition";
-import { renderMosaic } from "@/lib/cosmos/render";
-import { loadImage } from "@/lib/cosmos/engine";
+import { drawEndlessTargetFrame, drawVirtualTargetFrame } from "@/lib/cosmos/composition";
+import { mosaicBounds, renderMosaic } from "@/lib/cosmos/render";
+import { loadImage, makeAnalysisBitmap, type AnalysisBitmap } from "@/lib/cosmos/engine";
 import { cn } from "@/lib/utils";
 
 export type CanvasView = "target" | "reconstruction" | "baseline" | "compare";
 
-const MIN_ZOOM = 0.25;
+const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 12;
 
 function clamp(v: number, lo: number, hi: number) {
@@ -29,6 +29,8 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     aiGenerating,
     aiProgress,
     settings,
+    ensureWorldCells,
+    expandingCanvas,
   } = useStudio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -43,6 +45,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const baselineRef = useRef<HTMLCanvasElement>(null);
   const targetRef = useRef<HTMLCanvasElement>(null);
   const compareRef = useRef<HTMLCanvasElement>(null);
+  const targetBmpRef = useRef<AnalysisBitmap | null>(null);
   const layout = mosaic?.layout ?? null;
   const adjusted = (mosaic?.tiles ?? []).filter((t) => t.aiAdjustment);
 
@@ -74,6 +77,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     let cancelled = false;
     void loadImage(target.url).then((img) => {
       if (cancelled) return;
+      targetBmpRef.current = makeAnalysisBitmap(img, 640);
       const mosaicCanvas = canvasRef.current;
       const width =
         view === "compare" && mosaicCanvas?.width ? mosaicCanvas.width : 1600;
@@ -81,12 +85,25 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
         view === "compare" && mosaicCanvas?.height
           ? mosaicCanvas.height
           : Math.round(1600 / Math.max(0.2, layout.canvasAspect));
-      drawVirtualTargetFrame(canvas, img, layout, width, height);
+      if (view === "compare" && settings.endlessCanvas && mosaic && targetBmpRef.current) {
+        drawEndlessTargetFrame(
+          canvas,
+          img,
+          targetBmpRef.current,
+          layout,
+          settings,
+          mosaicBounds(mosaic),
+          width,
+          height,
+        );
+      } else {
+        drawVirtualTargetFrame(canvas, img, layout, width, height);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [target, layout, view, ready, mosaic]);
+  }, [target, layout, view, ready, mosaic, settings]);
 
   const reset = useCallback(() => {
     setCamera({ zoom: 1, offset: { x: 0, y: 0 } });
@@ -95,6 +112,30 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   useEffect(() => {
     reset();
   }, [view, reset]);
+
+  useEffect(() => {
+    if (!settings.endlessCanvas || !mosaic || view === "target" || view === "baseline") return;
+    const el = viewportRef.current;
+    if (!el) return;
+    const timer = window.setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      const visibleColumns = Math.ceil(settings.columns / Math.max(camera.zoom, 0.08));
+      const visibleRows = Math.ceil(settings.rows / Math.max(camera.zoom, 0.08));
+      const centerColumn = (settings.columns - 1) / 2 -
+        (camera.offset.x / Math.max(1, rect.width * camera.zoom)) * settings.columns;
+      const centerRow = (settings.rows - 1) / 2 -
+        (camera.offset.y / Math.max(1, rect.height * camera.zoom)) * settings.rows;
+      const overscanColumns = Math.ceil(visibleColumns * 0.18);
+      const overscanRows = Math.ceil(visibleRows * 0.18);
+      void ensureWorldCells({
+        minColumn: Math.floor(centerColumn - visibleColumns / 2) - overscanColumns,
+        maxColumn: Math.ceil(centerColumn + visibleColumns / 2) + overscanColumns,
+        minRow: Math.floor(centerRow - visibleRows / 2) - overscanRows,
+        maxRow: Math.ceil(centerRow + visibleRows / 2) + overscanRows,
+      });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [camera, ensureWorldCells, mosaic, settings.columns, settings.endlessCanvas, settings.rows, view]);
 
   const zoomAt = useCallback((zoomFactor: number, px: number, py: number) => {
     setCamera((current) => {
@@ -142,8 +183,11 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const tileAt = (e: React.MouseEvent, canvas: HTMLCanvasElement) => {
     if (!mosaic) return null;
     const rect = canvas.getBoundingClientRect();
-    const col = Math.floor(((e.clientX - rect.left) / rect.width) * mosaic.settings.columns);
-    const row = Math.floor(((e.clientY - rect.top) / rect.height) * mosaic.settings.rows);
+    const bounds = mosaicBounds(mosaic);
+    const columns = bounds.maxColumn - bounds.minColumn + 1;
+    const rows = bounds.maxRow - bounds.minRow + 1;
+    const col = bounds.minColumn + Math.floor(((e.clientX - rect.left) / rect.width) * columns);
+    const row = bounds.minRow + Math.floor(((e.clientY - rect.top) / rect.height) * rows);
     return mosaic.tiles.find((t) => t.row === row && t.column === col) ?? null;
   };
 
@@ -200,6 +244,15 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     "max-h-full max-w-full object-contain",
     dragTileId ? "cursor-grabbing" : "cursor-crosshair",
   );
+  const bounds = mosaic ? mosaicBounds(mosaic) : null;
+  const extentColumns = bounds ? bounds.maxColumn - bounds.minColumn + 1 : settings.columns;
+  const extentRows = bounds ? bounds.maxRow - bounds.minRow + 1 : settings.rows;
+  const endlessSize = settings.endlessCanvas && mosaic
+    ? {
+        width: `${(extentColumns / settings.columns) * 82}%`,
+        height: `${(extentRows / settings.rows) * 82}%`,
+      }
+    : undefined;
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
@@ -248,13 +301,18 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
             ))}
 
           {view === "reconstruction" && (
-            <div className="relative">
+            <div className="relative flex items-center justify-center" style={endlessSize}>
               <canvas
                 ref={canvasRef}
                 onPointerDown={onCanvasPointerDown}
                 onPointerMove={onCanvasPointerMove}
                 onPointerUp={onCanvasPointerUp}
-                className={cn(canvasClass, "transition-opacity", ready ? "opacity-100" : "opacity-40")}
+                className={cn(
+                  canvasClass,
+                  settings.endlessCanvas && "h-full w-full",
+                  "transition-opacity",
+                  ready ? "opacity-100" : "opacity-40",
+                )}
               />
               {showAiChanges && adjusted.length > 0 && (
                 <div
@@ -280,13 +338,13 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
           )}
 
           {view === "compare" && target && (
-            <div className="relative">
+            <div className="relative flex items-center justify-center" style={endlessSize}>
               <canvas
                 ref={canvasRef}
                 onPointerDown={onCanvasPointerDown}
                 onPointerMove={onCanvasPointerMove}
                 onPointerUp={onCanvasPointerUp}
-                className={canvasClass}
+                className={cn(canvasClass, settings.endlessCanvas && "h-full w-full")}
               />
               {/* same VirtualTargetLayout as the reconstruction — never stretched */}
               <canvas
@@ -351,6 +409,12 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
           >
             {showAiChanges ? "✦ Hide AI changes" : "✦ Show AI changes"} ({adjusted.length})
           </button>
+        )}
+
+        {expandingCanvas && settings.endlessCanvas && (
+          <div className="data-mono absolute top-4 left-4 rounded border border-primary/40 bg-surface/90 px-2 py-1 text-[10px] text-primary backdrop-blur">
+            Extending visible field…
+          </div>
         )}
 
         <p className="data-mono pointer-events-none absolute bottom-2 left-4 text-[10px] text-muted-foreground">
