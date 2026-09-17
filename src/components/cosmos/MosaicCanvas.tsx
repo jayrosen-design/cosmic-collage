@@ -252,8 +252,8 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     : 1;
   const endlessSize = settings.endlessCanvas && mosaic
     ? {
-        width: `${(extentColumns / settings.columns) * 100}%`,
-        aspectRatio: `${(extentColumns * tileAspect) / extentRows}`,
+        width: `${extentColumns * 48}px`,
+        height: `${extentRows * (48 / Math.max(0.2, tileAspect))}px`,
       }
     : undefined;
 
