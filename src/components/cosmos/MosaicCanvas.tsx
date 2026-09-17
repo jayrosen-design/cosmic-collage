@@ -261,7 +261,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const bounds = mosaic ? mosaicBounds(mosaic) : null;
   const extentColumns = bounds ? bounds.maxColumn - bounds.minColumn + 1 : settings.columns;
   const extentRows = bounds ? bounds.maxRow - bounds.minRow + 1 : settings.rows;
-  const coreAspect = mosaic?.layout.canvasAspect ?? settings.columns / settings.rows;
+  const coreAspect = mosaic?.layout?.canvasAspect ?? settings.columns / settings.rows;
   const availableWidth = viewportSize.width * 0.82;
   const availableHeight = viewportSize.height * 0.82;
   const coreWidth = Math.min(availableWidth, availableHeight * coreAspect);
