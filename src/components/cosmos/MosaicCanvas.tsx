@@ -262,10 +262,10 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const extentColumns = bounds ? bounds.maxColumn - bounds.minColumn + 1 : settings.columns;
   const extentRows = bounds ? bounds.maxRow - bounds.minRow + 1 : settings.rows;
   const coreAspect = mosaic?.layout?.canvasAspect ?? settings.columns / settings.rows;
-  const availableWidth = viewportSize.width * 0.82;
-  const availableHeight = viewportSize.height * 0.82;
+  const availableWidth = Math.max(320, viewportSize.width - 48);
+  const availableHeight = Math.max(240, viewportSize.height - 48);
   const coreWidth = Math.min(availableWidth, availableHeight * coreAspect);
-  const coreHeight = coreWidth / coreAspect;
+  const coreHeight = Math.min(availableHeight, coreWidth / coreAspect);
   const endlessSize = settings.endlessCanvas && mosaic
     ? {
         width: `${coreWidth * (extentColumns / settings.columns)}px`,
@@ -277,6 +277,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
       <div
         ref={viewportRef}
+        data-cosmic-viewport
         onPointerDown={onViewportPointerDown}
         onPointerMove={onViewportPointerMove}
         onPointerUp={endPan}
