@@ -36,7 +36,6 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [split, setSplit] = useState(50);
   const [ready, setReady] = useState(false);
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const [camera, setCamera] = useState({ zoom: 1, offset: { x: 0, y: 0 } });
   const [panning, setPanning] = useState(false);
@@ -113,19 +112,6 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   useEffect(() => {
     reset();
   }, [view, reset]);
-
-  useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const update = () => {
-      const rect = el.getBoundingClientRect();
-      setViewportSize({ width: rect.width, height: rect.height });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     if (!settings.endlessCanvas || !mosaic || view === "target" || view === "baseline") return;
@@ -261,15 +247,13 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const bounds = mosaic ? mosaicBounds(mosaic) : null;
   const extentColumns = bounds ? bounds.maxColumn - bounds.minColumn + 1 : settings.columns;
   const extentRows = bounds ? bounds.maxRow - bounds.minRow + 1 : settings.rows;
-  const coreAspect = mosaic?.layout?.canvasAspect ?? settings.columns / settings.rows;
-  const availableWidth = Math.max(320, viewportSize.width - 48);
-  const availableHeight = Math.max(240, viewportSize.height - 48);
-  const coreWidth = Math.min(availableWidth, availableHeight * coreAspect);
-  const coreHeight = Math.min(availableHeight, coreWidth / coreAspect);
+  const tileAspect = mosaic?.layout
+    ? (mosaic.layout.canvasAspect * settings.rows) / settings.columns
+    : 1;
   const endlessSize = settings.endlessCanvas && mosaic
     ? {
-        width: `${coreWidth * (extentColumns / settings.columns)}px`,
-        height: `${coreHeight * (extentRows / settings.rows)}px`,
+        width: `${(extentColumns / settings.columns) * 100}%`,
+        aspectRatio: `${(extentColumns * tileAspect) / extentRows}`,
       }
     : undefined;
 
