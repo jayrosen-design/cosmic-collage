@@ -308,8 +308,6 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
             <div className="relative flex shrink-0 items-center justify-center" style={endlessSize}>
               <canvas
                 ref={canvasRef}
-                data-endless={mosaic?.settings.endlessCanvas ? "true" : "false"}
-                data-world-bounds={bounds ? `${bounds.minColumn},${bounds.minRow}:${bounds.maxColumn},${bounds.maxRow}` : undefined}
                 onPointerDown={onCanvasPointerDown}
                 onPointerMove={onCanvasPointerMove}
                 onPointerUp={onCanvasPointerUp}

@@ -332,6 +332,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
           const all = [...current.tiles, ...unique];
           return {
             ...current,
+            settings: { ...current.settings, endlessCanvas: true },
             tiles: all,
             generatedBounds: {
               minRow: Math.min(...all.map((t) => t.row)),
