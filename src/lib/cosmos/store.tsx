@@ -150,7 +150,15 @@ interface StudioValue {
 }
 
 
-const StudioContext = createContext<StudioValue | null>(null);
+// Preserve one context identity across development hot updates. Without this,
+// providers and consumers can briefly reference different module instances.
+const studioContextKey = "__cosmicCollageStudioContext__";
+const globalContexts = globalThis as typeof globalThis & {
+  [studioContextKey]?: React.Context<StudioValue | null>;
+};
+const StudioContext =
+  globalContexts[studioContextKey] ?? createContext<StudioValue | null>(null);
+globalContexts[studioContextKey] = StudioContext;
 
 function normaliseWavelength(w: string): Wavelength {
   const v = w.toLowerCase();

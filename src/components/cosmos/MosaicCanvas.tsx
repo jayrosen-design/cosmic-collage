@@ -36,6 +36,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [split, setSplit] = useState(50);
   const [ready, setReady] = useState(false);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const [camera, setCamera] = useState({ zoom: 1, offset: { x: 0, y: 0 } });
   const [panning, setPanning] = useState(false);
@@ -112,6 +113,19 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   useEffect(() => {
     reset();
   }, [view, reset]);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setViewportSize({ width: rect.width, height: rect.height });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!settings.endlessCanvas || !mosaic || view === "target" || view === "baseline") return;
@@ -247,10 +261,15 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const bounds = mosaic ? mosaicBounds(mosaic) : null;
   const extentColumns = bounds ? bounds.maxColumn - bounds.minColumn + 1 : settings.columns;
   const extentRows = bounds ? bounds.maxRow - bounds.minRow + 1 : settings.rows;
+  const coreAspect = mosaic?.layout.canvasAspect ?? settings.columns / settings.rows;
+  const availableWidth = viewportSize.width * 0.82;
+  const availableHeight = viewportSize.height * 0.82;
+  const coreWidth = Math.min(availableWidth, availableHeight * coreAspect);
+  const coreHeight = coreWidth / coreAspect;
   const endlessSize = settings.endlessCanvas && mosaic
     ? {
-        width: `${(extentColumns / settings.columns) * 82}%`,
-        height: `${(extentRows / settings.rows) * 82}%`,
+        width: `${coreWidth * (extentColumns / settings.columns)}px`,
+        height: `${coreHeight * (extentRows / settings.rows)}px`,
       }
     : undefined;
 
@@ -308,8 +327,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
                 onPointerMove={onCanvasPointerMove}
                 onPointerUp={onCanvasPointerUp}
                 className={cn(
-                  canvasClass,
-                  settings.endlessCanvas && "h-full w-full",
+                  settings.endlessCanvas ? "h-full w-full cursor-crosshair" : canvasClass,
                   "transition-opacity",
                   ready ? "opacity-100" : "opacity-40",
                 )}
@@ -344,7 +362,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
                 onPointerDown={onCanvasPointerDown}
                 onPointerMove={onCanvasPointerMove}
                 onPointerUp={onCanvasPointerUp}
-                className={cn(canvasClass, settings.endlessCanvas && "h-full w-full")}
+                className={settings.endlessCanvas ? "h-full w-full cursor-crosshair" : canvasClass}
               />
               {/* same VirtualTargetLayout as the reconstruction — never stretched */}
               <canvas
