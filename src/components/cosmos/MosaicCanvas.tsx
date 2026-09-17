@@ -3,7 +3,7 @@ import { Minus, Plus, Maximize2 } from "lucide-react";
 import { useStudio } from "@/lib/cosmos/store";
 import { drawEndlessTargetFrame, drawVirtualTargetFrame } from "@/lib/cosmos/composition";
 import { mosaicBounds, renderMosaic } from "@/lib/cosmos/render";
-import { loadImage } from "@/lib/cosmos/engine";
+import { loadImage, makeAnalysisBitmap, type AnalysisBitmap } from "@/lib/cosmos/engine";
 import { cn } from "@/lib/utils";
 
 export type CanvasView = "target" | "reconstruction" | "baseline" | "compare";
@@ -45,6 +45,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
   const baselineRef = useRef<HTMLCanvasElement>(null);
   const targetRef = useRef<HTMLCanvasElement>(null);
   const compareRef = useRef<HTMLCanvasElement>(null);
+  const targetBmpRef = useRef<AnalysisBitmap | null>(null);
   const layout = mosaic?.layout ?? null;
   const adjusted = (mosaic?.tiles ?? []).filter((t) => t.aiAdjustment);
 
@@ -76,6 +77,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
     let cancelled = false;
     void loadImage(target.url).then((img) => {
       if (cancelled) return;
+      targetBmpRef.current = makeAnalysisBitmap(img, 640);
       const mosaicCanvas = canvasRef.current;
       const width =
         view === "compare" && mosaicCanvas?.width ? mosaicCanvas.width : 1600;
