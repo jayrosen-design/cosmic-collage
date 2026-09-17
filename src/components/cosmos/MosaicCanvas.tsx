@@ -320,7 +320,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
             ))}
 
           {view === "reconstruction" && (
-            <div className="relative flex items-center justify-center" style={endlessSize}>
+            <div className="relative flex shrink-0 items-center justify-center" style={endlessSize}>
               <canvas
                 ref={canvasRef}
                 onPointerDown={onCanvasPointerDown}
@@ -356,7 +356,7 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
           )}
 
           {view === "compare" && target && (
-            <div className="relative flex items-center justify-center" style={endlessSize}>
+            <div className="relative flex shrink-0 items-center justify-center" style={endlessSize}>
               <canvas
                 ref={canvasRef}
                 onPointerDown={onCanvasPointerDown}
