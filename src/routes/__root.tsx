@@ -127,8 +127,42 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+const STALE_CHUNK_KEY = "cosmic-collage:stale-chunk-reload";
+
+function useStaleChunkRecovery() {
+  useEffect(() => {
+    const isStaleChunkError = (message: string) =>
+      /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
+        message,
+      );
+
+    const recover = (message: string) => {
+      if (!isStaleChunkError(message)) return;
+      // A new deploy replaced the hashed asset this tab still references.
+      // Reload once to pick up the current build; guard against loops.
+      if (sessionStorage.getItem(STALE_CHUNK_KEY)) return;
+      sessionStorage.setItem(STALE_CHUNK_KEY, "1");
+      window.location.reload();
+    };
+
+    const onError = (e: ErrorEvent) => recover(e.message ?? "");
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const reason = e.reason;
+      recover(reason instanceof Error ? reason.message : String(reason ?? ""));
+    };
+
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useStaleChunkRecovery();
 
   return (
     <QueryClientProvider client={queryClient}>
