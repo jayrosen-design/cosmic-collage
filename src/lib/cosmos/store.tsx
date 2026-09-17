@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { computeVirtualTargetLayout, describeEndlessTargetCell, describeVirtualTargetCell } from "./composition";
+import { computeVirtualTargetLayout, describeVirtualTargetCell } from "./composition";
 import {
   browserEngine,
   loadImage,
@@ -174,6 +174,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [images, setImages] = useState<SourceImage[]>([]);
   const [settings, setSettings] = useState<MosaicSettings>(DEFAULT_SETTINGS);
   const [mosaic, setMosaic] = useState<Mosaic | null>(null);
+  const mosaicRef = useRef<Mosaic | null>(null);
   const [generating, setGenerating] = useState(false);
   const [expandingCanvas, setExpandingCanvas] = useState(false);
   const [progress, setProgress] = useState<EngineProgress | null>(null);
@@ -188,6 +189,10 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [aiError, setAiError] = useState<string | null>(null);
   const [navigatorConnected, setNavigatorConnected] = useState(false);
   const aiAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    mosaicRef.current = mosaic;
+  }, [mosaic]);
 
   useEffect(() => {
     setNavigatorConnected(!!getNavigatorApiKey());
@@ -285,8 +290,9 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
 
   const worldQueue = useRef<Promise<void>>(Promise.resolve());
   const ensureWorldCells = useCallback(async (bounds: { minRow: number; maxRow: number; minColumn: number; maxColumn: number }) => {
-    if (!target || !mosaic || !settings.endlessCanvas || browserEngine.candidates.length === 0) return;
-    const existing = new Set(mosaic.tiles.map((t) => `${t.row}:${t.column}`));
+    const currentMosaic = mosaicRef.current;
+    if (!target || !currentMosaic || !settings.endlessCanvas || browserEngine.candidates.length === 0) return;
+    const existing = new Set(currentMosaic.tiles.map((t) => `${t.row}:${t.column}`));
     const coordinates: Array<{ row: number; column: number }> = [];
     for (let row = bounds.minRow; row <= bounds.maxRow; row++) {
       for (let column = bounds.minColumn; column <= bounds.maxColumn; column++) {
@@ -298,13 +304,9 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       setExpandingCanvas(true);
       try {
         const bmp = targetBmp.current;
-        const layout = layoutRef.current ?? mosaic.layout;
+        const layout = layoutRef.current ?? mosaicRef.current?.layout;
         if (!bmp || !layout) return;
-        const latestKeys = new Set<string>();
-        setMosaic((current) => {
-          for (const tile of current?.tiles ?? []) latestKeys.add(`${tile.row}:${tile.column}`);
-          return current;
-        });
+        const latestKeys = new Set((mosaicRef.current?.tiles ?? []).map((tile) => `${tile.row}:${tile.column}`));
         const missing = coordinates.filter((c) => !latestKeys.has(`${c.row}:${c.column}`));
         if (missing.length === 0) return;
         const additions = await browserEngine.generateWorldCells(settings, bmp, layout, missing);
@@ -329,7 +331,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       }
     });
     await worldQueue.current;
-  }, [target, mosaic, settings]);
+  }, [target, settings]);
 
   const refreshNavigatorConnection = useCallback(() => {
     setNavigatorConnected(!!getNavigatorApiKey());

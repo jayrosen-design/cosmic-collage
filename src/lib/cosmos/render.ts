@@ -25,12 +25,26 @@ export async function preloadImages(images: SourceImage[]) {
  * matches the Virtual Target Canvas aspect, so tiles become uniformly rectangular
  * (never stretched per-tile); in "square" mode tiles stay square.
  */
+export function mosaicBounds(mosaic: Mosaic) {
+  if (!mosaic.settings.endlessCanvas || mosaic.tiles.length === 0) {
+    return { minRow: 0, maxRow: mosaic.settings.rows - 1, minColumn: 0, maxColumn: mosaic.settings.columns - 1 };
+  }
+  return mosaic.generatedBounds ?? {
+    minRow: Math.min(...mosaic.tiles.map((t) => t.row)),
+    maxRow: Math.max(...mosaic.tiles.map((t) => t.row)),
+    minColumn: Math.min(...mosaic.tiles.map((t) => t.column)),
+    maxColumn: Math.max(...mosaic.tiles.map((t) => t.column)),
+  };
+}
+
 function tileGeometry(mosaic: Mosaic, tilePx: number) {
-  const { columns, rows } = mosaic.settings;
+  const bounds = mosaicBounds(mosaic);
+  const columns = bounds.maxColumn - bounds.minColumn + 1;
+  const rows = bounds.maxRow - bounds.minRow + 1;
   const aspect = tileAspectFor(mosaic.settings, mosaic.layout); // tileW / tileH
   const tileW = tilePx;
   const tileH = Math.max(4, Math.round(tilePx / aspect));
-  return { tileW, tileH, width: columns * tileW, height: rows * tileH };
+  return { tileW, tileH, width: columns * tileW, height: rows * tileH, bounds };
 }
 
 /** Draw the collage. Every pixel comes from a source photograph crop. */
@@ -51,7 +65,7 @@ export async function renderMosaic(
     );
   const gap = options.gap ?? mosaic.settings.tileGap;
   const border = options.border ?? mosaic.settings.tileBorder;
-  const { tileW, tileH, width, height } = tileGeometry(mosaic, tilePx);
+  const { tileW, tileH, width, height, bounds } = tileGeometry(mosaic, tilePx);
 
   canvas.width = width;
   canvas.height = height;
@@ -63,8 +77,8 @@ export async function renderMosaic(
   for (const tile of mosaic.tiles) {
     const img = images.get(tile.sourceImageId);
     if (!img) continue;
-    const x = tile.column * tileW + gap / 2;
-    const y = tile.row * tileH + gap / 2;
+    const x = (tile.column - bounds.minColumn) * tileW + gap / 2;
+    const y = (tile.row - bounds.minRow) * tileH + gap / 2;
     const w = tileW - gap;
     const h = tileH - gap;
     const sx = tile.cropX * img.naturalWidth;
@@ -106,7 +120,9 @@ export async function renderAssemblyMap(
 ) {
   const cell = 84;
   const cellH = Math.max(24, Math.round(cell / tileAspectFor(mosaic.settings, mosaic.layout)));
-  const { columns, rows } = mosaic.settings;
+  const bounds = mosaicBounds(mosaic);
+  const columns = bounds.maxColumn - bounds.minColumn + 1;
+  const rows = bounds.maxRow - bounds.minRow + 1;
   const work = document.createElement("canvas");
   await renderMosaic(work, mosaic, sources, { tilePx: cell, gap: 0, border: 0 });
 
@@ -122,8 +138,8 @@ export async function renderAssemblyMap(
   ctx.textBaseline = "middle";
 
   for (const tile of mosaic.tiles) {
-    const x = tile.column * cell;
-    const y = tile.row * cellH;
+    const x = (tile.column - bounds.minColumn) * cell;
+    const y = (tile.row - bounds.minRow) * cellH;
     const isHighlight = highlightSourceId && tile.sourceImageId === highlightSourceId;
     if (isHighlight) {
       ctx.fillStyle = "rgba(240,182,74,0.28)";

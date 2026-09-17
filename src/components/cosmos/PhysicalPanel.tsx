@@ -6,6 +6,7 @@ import {
   downloadText,
   renderAssemblyMap,
   renderMosaic,
+  mosaicBounds,
   tileManifestCsv,
 } from "@/lib/cosmos/render";
 import { Button } from "@/components/ui/button";
@@ -41,8 +42,11 @@ export function PhysicalPanel() {
 
   const handleMapClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const col = Math.floor(((e.clientX - rect.left) / rect.width) * mosaic.settings.columns);
-    const row = Math.floor(((e.clientY - rect.top) / rect.height) * mosaic.settings.rows);
+    const bounds = mosaicBounds(mosaic);
+    const columnCount = bounds.maxColumn - bounds.minColumn + 1;
+    const rowCount = bounds.maxRow - bounds.minRow + 1;
+    const col = bounds.minColumn + Math.floor(((e.clientX - rect.left) / rect.width) * columnCount);
+    const row = bounds.minRow + Math.floor(((e.clientY - rect.top) / rect.height) * rowCount);
     const tile = mosaic.tiles.find((t) => t.row === row && t.column === col);
     if (tile) {
       setHighlightSource(tile.sourceImageId);

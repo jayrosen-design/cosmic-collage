@@ -323,6 +323,21 @@ export function ControlsPanel() {
               />
             </label>
           </div>
+          <div className="flex items-center justify-between rounded-sm border border-border p-2">
+            <div>
+              <span className="label-xs">Endless Canvas</span>
+              <p className="data-mono text-muted-foreground">zoom out to extend the target field</p>
+            </div>
+            <Switch
+              checked={settings.endlessCanvas}
+              onCheckedChange={(v) => patchSettings({ endlessCanvas: v })}
+            />
+          </div>
+          {settings.endlessCanvas && (
+            <p className="font-mono text-[10px] text-muted-foreground">
+              The selected grid sets center detail. New visible cells are matched from real source photographs.
+            </p>
+          )}
           <Row label="Tile Gap" value={`${settings.tileGap}px`}>
             <Slider
               value={[settings.tileGap]}
