@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Minus, Plus, Maximize2 } from "lucide-react";
 import { useStudio } from "@/lib/cosmos/store";
-import { drawVirtualTargetFrame } from "@/lib/cosmos/composition";
+import { drawEndlessTargetFrame, drawVirtualTargetFrame } from "@/lib/cosmos/composition";
 import { mosaicBounds, renderMosaic } from "@/lib/cosmos/render";
 import { loadImage } from "@/lib/cosmos/engine";
 import { cn } from "@/lib/utils";
 
 export type CanvasView = "target" | "reconstruction" | "baseline" | "compare";
 
-const MIN_ZOOM = 0.25;
+const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 12;
 
 function clamp(v: number, lo: number, hi: number) {
@@ -83,12 +83,25 @@ export function MosaicCanvas({ view }: { view: CanvasView }) {
         view === "compare" && mosaicCanvas?.height
           ? mosaicCanvas.height
           : Math.round(1600 / Math.max(0.2, layout.canvasAspect));
-      drawVirtualTargetFrame(canvas, img, layout, width, height);
+      if (view === "compare" && settings.endlessCanvas && mosaic && targetBmpRef.current) {
+        drawEndlessTargetFrame(
+          canvas,
+          img,
+          targetBmpRef.current,
+          layout,
+          settings,
+          mosaicBounds(mosaic),
+          width,
+          height,
+        );
+      } else {
+        drawVirtualTargetFrame(canvas, img, layout, width, height);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [target, layout, view, ready, mosaic]);
+  }, [target, layout, view, ready, mosaic, settings]);
 
   const reset = useCallback(() => {
     setCamera({ zoom: 1, offset: { x: 0, y: 0 } });

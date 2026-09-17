@@ -255,7 +255,14 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   }, [project, loadingDemo, activeDemo]);
 
   const patchSettings = useCallback((p: Partial<MosaicSettings>) => {
-    setSettings((s) => ({ ...s, ...p }));
+    setSettings((s) => {
+      if (p.endlessCanvas !== undefined && p.endlessCanvas !== s.endlessCanvas) {
+        setMosaic(null);
+        setSelectedTileId(null);
+        autoRan.current = false;
+      }
+      return { ...s, ...p };
+    });
   }, []);
 
   const generate = useCallback(async () => {

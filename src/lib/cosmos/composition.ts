@@ -278,22 +278,7 @@ export function describeEndlessTargetCell(
   row: number,
   column: number,
 ): VirtualCell {
-  const targetAspect = targetBmp.width / Math.max(1, targetBmp.height);
-  const canvasAspect = layout.canvasAspect;
-  const scale = clamp(settings.targetScale ?? 0.72, MIN_TARGET_SCALE, MAX_TARGET_SCALE);
-  const coverW = targetAspect >= canvasAspect ? targetAspect / canvasAspect : 1;
-  const coverH = targetAspect >= canvasAspect ? 1 : canvasAspect / targetAspect;
-  const targetWidth = coverW / scale;
-  const targetHeight = coverH / scale;
-  const targetX = (1 - targetWidth) * clamp(settings.targetOffsetX ?? 0.5);
-  const targetY = (1 - targetHeight) * clamp(settings.targetOffsetY ?? 0.5);
-  const worldLayout: VirtualTargetLayout = {
-    ...layout,
-    targetX,
-    targetY,
-    targetWidth,
-    targetHeight,
-  };
+  const worldLayout = computeEndlessTargetLayout(targetBmp, layout, settings);
   const rect = {
     x: column / settings.columns,
     y: row / settings.rows,
@@ -307,6 +292,29 @@ export function describeEndlessTargetCell(
   return {
     features: blendFeatures(layout.backgroundFeatures, inside, mapped.coverage),
     coverage: mapped.coverage,
+  };
+}
+
+export function computeEndlessTargetLayout(
+  targetBmp: AnalysisBitmap,
+  layout: VirtualTargetLayout,
+  settings: MosaicSettings,
+): VirtualTargetLayout {
+  const targetAspect = targetBmp.width / Math.max(1, targetBmp.height);
+  const canvasAspect = layout.canvasAspect;
+  const scale = clamp(settings.targetScale ?? 0.72, MIN_TARGET_SCALE, MAX_TARGET_SCALE);
+  const coverW = targetAspect >= canvasAspect ? targetAspect / canvasAspect : 1;
+  const coverH = targetAspect >= canvasAspect ? 1 : canvasAspect / targetAspect;
+  const targetWidth = coverW / scale;
+  const targetHeight = coverH / scale;
+  const targetX = (1 - targetWidth) * clamp(settings.targetOffsetX ?? 0.5);
+  const targetY = (1 - targetHeight) * clamp(settings.targetOffsetY ?? 0.5);
+  return {
+    ...layout,
+    targetX,
+    targetY,
+    targetWidth,
+    targetHeight,
   };
 }
 
@@ -388,5 +396,34 @@ export function drawVirtualTargetFrame(
     layout.targetY * canvas.height,
     layout.targetWidth * canvas.width,
     layout.targetHeight * canvas.height,
+  );
+}
+
+export function drawEndlessTargetFrame(
+  canvas: HTMLCanvasElement,
+  img: HTMLImageElement,
+  targetBmp: AnalysisBitmap,
+  layout: VirtualTargetLayout,
+  settings: MosaicSettings,
+  bounds: { minRow: number; maxRow: number; minColumn: number; maxColumn: number },
+  width: number,
+  height: number,
+) {
+  canvas.width = Math.max(16, Math.round(width));
+  canvas.height = Math.max(16, Math.round(height));
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = rgbCss(layout.backgroundFeatures);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const targetLayout = computeEndlessTargetLayout(targetBmp, layout, settings);
+  const worldX = bounds.minColumn / settings.columns;
+  const worldY = bounds.minRow / settings.rows;
+  const worldWidth = (bounds.maxColumn - bounds.minColumn + 1) / settings.columns;
+  const worldHeight = (bounds.maxRow - bounds.minRow + 1) / settings.rows;
+  ctx.drawImage(
+    img,
+    ((targetLayout.targetX - worldX) / worldWidth) * canvas.width,
+    ((targetLayout.targetY - worldY) / worldHeight) * canvas.height,
+    (targetLayout.targetWidth / worldWidth) * canvas.width,
+    (targetLayout.targetHeight / worldHeight) * canvas.height,
   );
 }

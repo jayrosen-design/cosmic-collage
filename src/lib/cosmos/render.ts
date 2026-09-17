@@ -57,12 +57,10 @@ export async function renderMosaic(
   const images = await preloadImages(
     sources.filter((s) => mosaic.tiles.some((t) => t.sourceImageId === s.id)),
   );
-  const tilePx =
-    options.tilePx ??
-    Math.max(
-      8,
-      Math.floor(Math.min(3600 / mosaic.settings.columns, 3600 / mosaic.settings.rows, 64)),
-    );
+  const renderBounds = mosaicBounds(mosaic);
+  const extentColumns = renderBounds.maxColumn - renderBounds.minColumn + 1;
+  const extentRows = renderBounds.maxRow - renderBounds.minRow + 1;
+  const tilePx = options.tilePx ?? Math.max(4, Math.floor(Math.min(3600 / extentColumns, 3600 / extentRows, 64)));
   const gap = options.gap ?? mosaic.settings.tileGap;
   const border = options.border ?? mosaic.settings.tileBorder;
   const { tileW, tileH, width, height, bounds } = tileGeometry(mosaic, tilePx);
