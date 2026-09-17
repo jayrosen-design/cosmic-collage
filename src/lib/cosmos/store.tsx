@@ -263,15 +263,15 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   }, [project, loadingDemo, activeDemo]);
 
   const patchSettings = useCallback((p: Partial<MosaicSettings>) => {
-    setSettings((s) => {
-      if (p.endlessCanvas !== undefined && p.endlessCanvas !== s.endlessCanvas) {
-        setMosaic(null);
-        setSelectedTileId(null);
-        autoRan.current = false;
-      }
-      return { ...s, ...p };
-    });
-  }, []);
+    const changesCanvasMode =
+      p.endlessCanvas !== undefined && p.endlessCanvas !== settings.endlessCanvas;
+    setSettings((s) => ({ ...s, ...p }));
+    if (changesCanvasMode) {
+      setMosaic(null);
+      setSelectedTileId(null);
+      autoRan.current = false;
+    }
+  }, [settings.endlessCanvas]);
 
   const generate = useCallback(async () => {
     if (!target || generating) return;
